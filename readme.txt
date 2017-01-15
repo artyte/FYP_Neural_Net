@@ -1,0 +1,1 @@
+Tutorial: https://www.tensorflow.org/tutorials/mnist/beginners/
