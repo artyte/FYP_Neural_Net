@@ -3,7 +3,7 @@
 Grammar Correction with Deep Learning
 
 Sub Project:
-- MLP ([reference tutorial](https://www.tensorflow.org/tutorials/mnist/beginners/))
+- basic ANN ([reference tutorial](https://www.tensorflow.org/tutorials/mnist/beginners/))
 - LSTM binary classifier on English sentences with wrong grammar <- currently attempting
 
 Status:
