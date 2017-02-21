@@ -29,8 +29,12 @@ model = w2v(sentences,
             sample = 1e-3,
             iter = 6)
 
+model.save("embeds")
+
+'''
 weights = model.syn0
 np.save(open("embeds.npy", 'wb'), weights)
+'''
 
 vocab = dict([(k, v.index) for k, v in model.vocab.items()])
 with open("vocab.txt", 'w') as f:
