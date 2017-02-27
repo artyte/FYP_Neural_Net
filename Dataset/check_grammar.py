@@ -31,7 +31,7 @@ model = Sequential([
 					weights=[weights],
 					input_length=max_sentence_length),
 	LSTM(300, return_sequences=False),
-	Dense(2),
+	Dense(1),
 	Activation('sigmoid')
 ])
 model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
