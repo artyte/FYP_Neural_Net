@@ -16,7 +16,6 @@ class WordEmbeds:
 
 	@staticmethod
 	def __init__():
-		wh() # initialize dataset
 		formatTest()
 		formatDevelopment()
 		formatTrain()
@@ -44,12 +43,16 @@ class WordEmbeds:
 		np.save(open("embeds.npy", 'wb'), weights)
 		
 		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-		with open("TESTING_DATA_VOCAB.txt", 'w') as f:
+		with open("TESTING_DATA_VOCAB.json", 'w') as f:
 			f.write(json.dumps(vocab))
+			
+		return sentences
 		
+		'''
 		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
 		with open("TESTING_DATA_REVERSE_VOCAB.txt", 'w') as f:
 			f.write(json.dumps(reverse_vocab))
+		'''
 			
 	@staticmethod
 	def formatDevelopment():
@@ -71,18 +74,22 @@ class WordEmbeds:
 							iter = 6)
 		
 		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-		with open("DEVELOPMENT_DATA_VOCAB.txt", 'w') as f:
+		with open("DEVELOPMENT_DATA_VOCAB.json", 'w') as f:
 			f.write(json.dumps(vocab))
+			
+		return sentences
 		
+		'''
 		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
 		with open("DEVELOPMENT_DATA_REVERSE_VOCAB.txt", 'w') as f:
 			f.write(json.dumps(reverse_vocab))
+		'''
 		
 	@staticmethod
 	def formatTrain():
 		# convert testing data into list of lists
 		sentences = []
-		senlis = wh.getFeatures("DEVELOPMENT_DATA")
+		senlis = wh.getFeatures("TRAINING_DATA")
 		for sentence in senlis:
 			words = wt(sentence)
 			sentences.append(words)
@@ -98,12 +105,16 @@ class WordEmbeds:
 							iter = 6)
 		
 		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-		with open("TRAINING_DATA_VOCAB.txt", 'w') as f:
+		with open("TRAINING_DATA_VOCAB.json", 'w') as f:
 			f.write(json.dumps(vocab))
+			
+		return sentences
 		
+		'''
 		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
 		with open("TRAINING_DATA_REVERSE_VOCAB.txt", 'w') as f:
 			f.write(json.dumps(reverse_vocab))
+		'''
 
 '''
 tsne = sklearn.manifold.TSNE(n_components=2, random_state=0)

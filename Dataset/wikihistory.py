@@ -1,4 +1,5 @@
 import csv
+import json
 from wordembeds import WordEmbeds as we
 
 class WikiHistory:
@@ -16,14 +17,45 @@ class WikiHistory:
 			WikiHistory.prepareTrainingData(read, row_count)
 			WikiHistory.prepareDevelopmentData(read, row_count)
 			WikiHistory.prepareTestData(read, row_count)
-		we()
-		convertTrainingData()
-		convertDevelopmentData()
-		convertTestData()
+		convertTrainingData(we.formatTest())
+		convertDevelopmentData(we.formatDevelopment())
+		convertTestData(we.formatTrain())
 			
 	@staticmethod
-	def convertTrainingData():
-		with open("TESTING_DATA_VOCAB", encoding 
+	def convertTrainingData(sentences):
+		with open("TESTING_DATA_VOCAB.txt", encoding = "utf8") as f:
+			word_dict = json.load(f)
+			sentences_tmp = []
+			for sentence in sentences:
+				sentence_tmp = []
+				for word in sentence:
+					sentence_tmp.append(int(word_dict[word]))
+				sentences_tmp.append(sentence_tmp)
+			testData = sentences_tmp
+	
+	@staticmethod
+	def convertDevelopmentData(sentences):
+		with open("DEVELOPMENT_DATA_VOCAB.txt", encoding = "utf8") as f:
+			word_dict = json.load(f)
+			sentences_tmp = []
+			for sentence in sentences:
+				sentence_tmp = []
+				for word in sentence:
+					sentence_tmp.append(int(word_dict[word]))
+				sentences_tmp.append(sentence_tmp)
+			developData = sentences_tmp
+	
+	@staticmethod
+	def convertTestData(sentences):
+		with open("TRAINING_DATA_VOCAB.txt", encoding = "utf8") as f:
+			word_dict = json.load(f)
+			sentences_tmp = []
+			for sentence in sentences:
+				sentence_tmp = []
+				for word in sentence:
+					sentence_tmp.append(int(word_dict[word]))
+				sentences_tmp.append(sentence_tmp)
+			trainData = sentences_tmp
 			
 
 	@staticmethod

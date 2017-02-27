@@ -3,15 +3,20 @@ from keras.layers import Dense, Activation
 from keras.layers.recurrent import LSTM
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
+from wikihistory import WikiHistory as wh
 import numpy as np
 import time
 
-# fix random seed for reproducibility
+# fix random seed for reproducibility and initialise dataset
 np.random.seed(time.time())
+wh()
 
-# load the dataset in a tuple
+# load the dataset and weights
 weights = np.load(open("embeds.npy", 'rb'))
-(X_train, y_train), (X_test, y_test) = 
+X_train = wh.getFeatures("TRAINING_DATA")
+y_train = wh.getLabels("TRAINING_DATA")
+X_test = wh.getFeatures("TESTING_DATA")
+y_test = wh.getLabels("TESTING_DATA")
 
 # pad input_length
 max_sentence_length = 500
