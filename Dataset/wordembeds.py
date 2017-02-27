@@ -2,43 +2,108 @@ from wikihistory import WikiHistory as wh
 from nltk.tokenize import word_tokenize as wt
 from gensim.models import Word2Vec as w2v
 import multiprocessing
-import os
 import numpy as np
 import json
+'''
+import os
 import sklearn.manifold
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-
-wh() # initialize dataset
-
-# convert testing data into list of lists
-sentences = []
-senlis = wh.getFeatures("TESTING_DATA")
-for sentence in senlis:
-    words = wt(sentence)
-    sentences.append(words)
-
-model = w2v(sentences,
-            sg = 1,
-            seed = 1,
-            workers = multiprocessing.cpu_count(),
-            size = 300,
-            min_count = 3,
-            window = 7,
-            sample = 1e-3,
-            iter = 6)
-
-model.save("embeds")
-
-'''
-weights = model.syn0
-np.save(open("embeds.npy", 'wb'), weights)
 '''
 
-vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-with open("vocab.txt", 'w') as f:
-    f.write(json.dumps(vocab))
+class WordEmbeds:
+
+	@staticmethod
+	def __init__():
+		wh() # initialize dataset
+		formatTest()
+		formatDevelopment()
+		formatTrain()
+	
+	@staticmethod
+	def formatTest():
+		# convert testing data into list of lists
+		sentences = []
+		senlis = wh.getFeatures("TESTING_DATA")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+
+		weights = model.syn0
+		np.save(open("embeds.npy", 'wb'), weights)
+		
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		with open("TESTING_DATA_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(vocab))
+		
+		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
+		with open("TESTING_DATA_REVERSE_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(reverse_vocab))
+			
+	@staticmethod
+	def formatDevelopment():
+		# convert testing data into list of lists
+		sentences = []
+		senlis = wh.getFeatures("DEVELOPMENT_DATA")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+		
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		with open("DEVELOPMENT_DATA_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(vocab))
+		
+		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
+		with open("DEVELOPMENT_DATA_REVERSE_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(reverse_vocab))
+		
+	@staticmethod
+	def formatTrain():
+		# convert testing data into list of lists
+		sentences = []
+		senlis = wh.getFeatures("DEVELOPMENT_DATA")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+		
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		with open("TRAINING_DATA_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(vocab))
+		
+		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
+		with open("TRAINING_DATA_REVERSE_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(reverse_vocab))
 
 '''
 tsne = sklearn.manifold.TSNE(n_components=2, random_state=0)

@@ -1,4 +1,5 @@
 import csv
+from wordembeds import WordEmbeds as we
 
 class WikiHistory:
 
@@ -15,6 +16,15 @@ class WikiHistory:
 			WikiHistory.prepareTrainingData(read, row_count)
 			WikiHistory.prepareDevelopmentData(read, row_count)
 			WikiHistory.prepareTestData(read, row_count)
+		we()
+		convertTrainingData()
+		convertDevelopmentData()
+		convertTestData()
+			
+	@staticmethod
+	def convertTrainingData():
+		with open("TESTING_DATA_VOCAB", encoding 
+			
 
 	@staticmethod
 	def prepareTrainingData(input, row_count):
