@@ -1,13 +1,16 @@
 import csv
 import json
+import multiprocessing
 import numpy as np
-from wordembeds import WordEmbeds as we
+from nltk.tokenize import word_tokenize as wt
+from gensim.models import Word2Vec as w2v
 
 class WikiHistory:
 
 	testData = []
 	developData = []
 	trainData = []
+	model = 0
 
 	@staticmethod
 	def __init__():
@@ -18,9 +21,11 @@ class WikiHistory:
 			WikiHistory.prepareTrainingData(read, row_count)
 			WikiHistory.prepareDevelopmentData(read, row_count)
 			WikiHistory.prepareTestData(read, row_count)
-		convertTrainingData(we.formatTest())
-		convertDevelopmentData(we.formatDevelopment())
-		convertTestData(we.formatTrain())
+		
+		WikiHistory.produceWeights()
+		convertTrainingData(WikiHistory.formatTest())
+		convertDevelopmentData(WikiHistory.formatDevelopment())
+		convertTestData(WikiHistory.formatTrain())
 			
 	@staticmethod
 	def convertTrainingData(sentences):
@@ -131,3 +136,115 @@ class WikiHistory:
 			return WikiHistory.developData
 		elif (string == "TRAINING_DATA"):
 			return WikiHistory.trainData
+			
+	@staticmethod
+	def produceWeights():
+	# convert testing data into list of lists
+		sentences = []
+		senlis = WikiHistory.getFeatures("EVERYTHING")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+		
+		weights = model.syn0
+		np.save(open("embeds.npy", 'wb'), weights)
+	
+	@staticmethod
+	def formatTest():
+		# convert testing data into list of lists
+		sentences = []
+		senlis = WikiHistory.getFeatures("TESTING_DATA")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+
+		weights = model.syn0
+		np.save(open("embeds.npy", 'wb'), weights)
+		
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		with open("TESTING_DATA_VOCAB.json", 'w') as f:
+			f.write(json.dumps(vocab))
+			
+		return sentences
+		
+		'''
+		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
+		with open("TESTING_DATA_REVERSE_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(reverse_vocab))
+		'''
+			
+	@staticmethod
+	def formatDevelopment():
+		# convert testing data into list of lists
+		sentences = []
+		senlis = WikiHistory.getFeatures("DEVELOPMENT_DATA")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+		
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		with open("DEVELOPMENT_DATA_VOCAB.json", 'w') as f:
+			f.write(json.dumps(vocab))
+			
+		return sentences
+		
+		'''
+		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
+		with open("DEVELOPMENT_DATA_REVERSE_VOCAB.txt", 'w') as f:
+			f.write(json.dumps(reverse_vocab))
+		'''
+		
+	@staticmethod
+	def formatTrain():
+		# convert testing data into list of lists
+		sentences = []
+		senlis = WikiHistory.getFeatures("TRAINING_DATA")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+		
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		with open("TRAINING_DATA_VOCAB.json", 'w') as f:
+			f.write(json.dumps(vocab))
+			
+		return sentences
