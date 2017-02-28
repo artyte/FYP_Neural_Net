@@ -8,9 +8,14 @@ from gensim.models import Word2Vec as w2v
 class WikiHistory:
 
 	testData = []
+	test_X = []
+	test_Y =[]
 	developData = []
+	develop_X =[]
+	develop_Y = []
 	trainData = []
-	model = 0
+	train_X = []
+	train_Y = []
 
 	@staticmethod
 	def __init__():
@@ -23,13 +28,14 @@ class WikiHistory:
 			WikiHistory.prepareTestData(read, row_count)
 		
 		WikiHistory.produceWeights()
-		convertTrainingData(WikiHistory.formatTest())
-		convertDevelopmentData(WikiHistory.formatDevelopment())
-		convertTestData(WikiHistory.formatTrain())
-			
+		WikiHistory.convertTrainingData(WikiHistory.formatTrain())
+		WikiHistory.convertDevelopmentData(WikiHistory.formatDevelopment())
+		WikiHistory.convertTestData(WikiHistory.formatTest())
+		WikiHistory.setLabels()
+		
 	@staticmethod
 	def convertTrainingData(sentences):
-		with open("TESTING_DATA_VOCAB.txt", encoding = "utf8") as f:
+		with open("TRAINING_DATA_VOCAB.json", encoding = "utf8") as f:
 			word_dict = json.load(f)
 			sentences_tmp = []
 			for sentence in sentences:
@@ -37,11 +43,11 @@ class WikiHistory:
 				for word in sentence:
 					sentence_tmp.append(int(word_dict[word]))
 				sentences_tmp.append(sentence_tmp)
-			testData = np.array(sentences_tmp)
+			WikiHistory.train_X = np.array(sentences_tmp)
 	
 	@staticmethod
 	def convertDevelopmentData(sentences):
-		with open("DEVELOPMENT_DATA_VOCAB.txt", encoding = "utf8") as f:
+		with open("DEVELOPMENT_DATA_VOCAB.json", encoding = "utf8") as f:
 			word_dict = json.load(f)
 			sentences_tmp = []
 			for sentence in sentences:
@@ -49,11 +55,11 @@ class WikiHistory:
 				for word in sentence:
 					sentence_tmp.append(int(word_dict[word]))
 				sentences_tmp.append(sentence_tmp)
-			developData = np.array(sentences_tmp)
+			WikiHistory.develop_X = np.array(sentences_tmp)
 	
 	@staticmethod
 	def convertTestData(sentences):
-		with open("TRAINING_DATA_VOCAB.txt", encoding = "utf8") as f:
+		with open("TESTING_DATA_VOCAB.json", encoding = "utf8") as f:
 			word_dict = json.load(f)
 			sentences_tmp = []
 			for sentence in sentences:
@@ -61,7 +67,7 @@ class WikiHistory:
 				for word in sentence:
 					sentence_tmp.append(int(word_dict[word]))
 				sentences_tmp.append(sentence_tmp)
-			trainData = np.array(sentences_tmp)
+			WikiHistory.test_X = np.array(sentences_tmp)
 			
 
 	@staticmethod
@@ -87,6 +93,21 @@ class WikiHistory:
 		for index, row in enumerate(input):
 			WikiHistory.testData.append([row[2], row[3]])
 
+	@staticmethod
+	def setLabels():
+		lis = []
+		for row in WikiHistory.testData:
+			lis.append(int(row[1]))
+		WikiHistory.test_Y = np.array(list(lis))
+		lis = list([])
+		for row in WikiHistory.developData:
+			lis.append(int(row[1]))
+		WikiHistory.develop_Y = np.array(list(lis))
+		lis = list([])
+		for row in WikiHistory.trainData:
+			lis.append(int(row[1]))
+		WikiHistory.train_Y = np.array(list(lis))
+	
 	@staticmethod
 	def getLabels(string):
 		lis = []
@@ -151,13 +172,12 @@ class WikiHistory:
 							seed = 1,
 							workers = multiprocessing.cpu_count(),
 							size = 300,
-							min_count = 3,
+							min_count = 0,
 							window = 7,
-							sample = 1e-3,
 							iter = 6)
 		
-		weights = model.syn0
-		np.save(open("embeds.npy", 'wb'), weights)
+		WikiHistory.weights = model.syn0
+		np.save(open("embeds.npy", 'wb'), WikiHistory.weights)
 	
 	@staticmethod
 	def formatTest():
@@ -173,9 +193,8 @@ class WikiHistory:
 							seed = 1,
 							workers = multiprocessing.cpu_count(),
 							size = 300,
-							min_count = 3,
+							min_count = 0,
 							window = 7,
-							sample = 1e-3,
 							iter = 6)
 
 		weights = model.syn0
@@ -207,9 +226,8 @@ class WikiHistory:
 							seed = 1,
 							workers = multiprocessing.cpu_count(),
 							size = 300,
-							min_count = 3,
+							min_count = 0,
 							window = 7,
-							sample = 1e-3,
 							iter = 6)
 		
 		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
@@ -238,9 +256,8 @@ class WikiHistory:
 							seed = 1,
 							workers = multiprocessing.cpu_count(),
 							size = 300,
-							min_count = 3,
+							min_count = 0,
 							window = 7,
-							sample = 1e-3,
 							iter = 6)
 		
 		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
