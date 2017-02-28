@@ -1,5 +1,6 @@
 import csv
 import json
+import numpy as np
 from wordembeds import WordEmbeds as we
 
 class WikiHistory:
@@ -31,7 +32,7 @@ class WikiHistory:
 				for word in sentence:
 					sentence_tmp.append(int(word_dict[word]))
 				sentences_tmp.append(sentence_tmp)
-			testData = sentences_tmp
+			testData = np.array(sentences_tmp)
 	
 	@staticmethod
 	def convertDevelopmentData(sentences):
@@ -43,7 +44,7 @@ class WikiHistory:
 				for word in sentence:
 					sentence_tmp.append(int(word_dict[word]))
 				sentences_tmp.append(sentence_tmp)
-			developData = sentences_tmp
+			developData = np.array(sentences_tmp)
 	
 	@staticmethod
 	def convertTestData(sentences):
@@ -55,7 +56,7 @@ class WikiHistory:
 				for word in sentence:
 					sentence_tmp.append(int(word_dict[word]))
 				sentences_tmp.append(sentence_tmp)
-			trainData = sentences_tmp
+			trainData = np.array(sentences_tmp)
 			
 
 	@staticmethod
@@ -112,7 +113,15 @@ class WikiHistory:
 			for row in WikiHistory.trainData:
 				lis.append(row[0])
 			return lis
-
+		elif (string == "EVERYTHING"):
+			for row in WikiHistory.testData:
+				lis.append(row[0])
+			for row in WikiHistory.developData:
+				lis.append(row[0])
+			for row in WikiHistory.trainData:
+				lis.append(row[0])
+			return lis
+			
 	@staticmethod
 	def getList(string):
 		lis = []

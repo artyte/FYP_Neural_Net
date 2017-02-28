@@ -21,6 +21,28 @@ class WordEmbeds:
 		formatTrain()
 	
 	@staticmethod
+	def produceWeights():
+	# convert testing data into list of lists
+		sentences = []
+		senlis = wh.getFeatures("EVERYTHING")
+		for sentence in senlis:
+			words = wt(sentence)
+			sentences.append(words)
+
+		model = w2v(sentences,
+							sg = 1,
+							seed = 1,
+							workers = multiprocessing.cpu_count(),
+							size = 300,
+							min_count = 3,
+							window = 7,
+							sample = 1e-3,
+							iter = 6)
+
+		weights = model.syn0
+		np.save(open("embeds.npy", 'wb'), weights)
+	
+	@staticmethod
 	def formatTest():
 		# convert testing data into list of lists
 		sentences = []
