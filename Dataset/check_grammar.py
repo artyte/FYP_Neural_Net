@@ -8,18 +8,18 @@ import numpy as np
 import time
 
 # fix random seed for reproducibility and initialise dataset
-np.random.seed(time.time())
+np.random.seed(1)
 wh()
 
 # load the dataset and weights
 weights = np.load(open("embeds.npy", 'rb'))
-X_train = wh.getFeatures("TRAINING_DATA")
-y_train = wh.getLabels("TRAINING_DATA")
-X_test = wh.getFeatures("TESTING_DATA")
-y_test = wh.getLabels("TESTING_DATA")
+X_train = wh.train_X
+y_train = wh.train_Y
+X_test = wh.test_X
+y_test = wh.test_Y
 
 # pad input_length
-max_sentence_length = 500
+max_sentence_length = 300
 X_train = sequence.pad_sequences(X_train, maxlen=max_sentence_length)
 X_test = sequence.pad_sequences(X_test, maxlen=max_sentence_length)
 
@@ -34,12 +34,11 @@ model = Sequential([
 	Dense(1),
 	Activation('sigmoid')
 ])
-model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 # train model
-model.fit(X_train, y_train, nb_epoch=10, batch_size=64)
+model.fit(X_train, y_train, nb_epoch=5, batch_size=128)
 
 # Final evaluation of the model
 scores = model.evaluate(X_test, y_test, verbose=0)
-print('Test score:', score)
-print('Test accuracy:', acc)
+print('Test score:', scores)
