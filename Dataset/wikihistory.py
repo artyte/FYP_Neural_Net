@@ -41,7 +41,7 @@ class WikiHistory:
 			for sentence in sentences:
 				sentence_tmp = []
 				for word in sentence:
-					sentence_tmp.append(int(word_dict[word]))
+					sentence_tmp.append(int(word_dict[word]) + 1)
 				sentences_tmp.append(sentence_tmp)
 			WikiHistory.train_X = np.array(sentences_tmp)
 	
@@ -53,7 +53,7 @@ class WikiHistory:
 			for sentence in sentences:
 				sentence_tmp = []
 				for word in sentence:
-					sentence_tmp.append(int(word_dict[word]))
+					sentence_tmp.append(int(word_dict[word]) + 1)
 				sentences_tmp.append(sentence_tmp)
 			WikiHistory.develop_X = np.array(sentences_tmp)
 	
@@ -65,7 +65,7 @@ class WikiHistory:
 			for sentence in sentences:
 				sentence_tmp = []
 				for word in sentence:
-					sentence_tmp.append(int(word_dict[word]))
+					sentence_tmp.append(int(word_dict[word]) + 1)
 				sentences_tmp.append(sentence_tmp)
 			WikiHistory.test_X = np.array(sentences_tmp)
 			
@@ -205,12 +205,6 @@ class WikiHistory:
 			f.write(json.dumps(vocab))
 			
 		return sentences
-		
-		'''
-		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
-		with open("TESTING_DATA_REVERSE_VOCAB.txt", 'w') as f:
-			f.write(json.dumps(reverse_vocab))
-		'''
 			
 	@staticmethod
 	def formatDevelopment():
@@ -235,12 +229,6 @@ class WikiHistory:
 			f.write(json.dumps(vocab))
 			
 		return sentences
-		
-		'''
-		reverse_vocab = dict([v.index, k) for k, v in model.vocab.items()])
-		with open("DEVELOPMENT_DATA_REVERSE_VOCAB.txt", 'w') as f:
-			f.write(json.dumps(reverse_vocab))
-		'''
 		
 	@staticmethod
 	def formatTrain():

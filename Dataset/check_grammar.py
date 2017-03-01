@@ -1,11 +1,12 @@
 from keras.models import Sequential
 from keras.layers import Dense, Activation
-from keras.layers.recurrent import LSTM
+from keras.layers.convolutional import Convolution1D, MaxPooling1D
+from keras.layers.recurrent import LSTM, GRU
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
+from keras.regularizers import l2
 from wikihistory import WikiHistory as wh
 import numpy as np
-import time
 
 # fix random seed for reproducibility and initialise dataset
 np.random.seed(1)
@@ -24,17 +25,32 @@ X_train = sequence.pad_sequences(X_train, maxlen=max_sentence_length)
 X_test = sequence.pad_sequences(X_test, maxlen=max_sentence_length)
 
 # create the model
-word_length = 300
 model = Sequential([
 	Embedding(input_dim=weights.shape[0],
 					output_dim=weights.shape[1],
 					weights=[weights],
 					input_length=max_sentence_length),
-	LSTM(300, return_sequences=False),
+	Convolution1D(nb_filter=weights.shape[1],
+						filter_length=3,
+						border_mode='same',
+						activation='relu'),
+	MaxPooling1D(pool_length=2),
+	GRU(weights.shape[1],
+			W_regularizer=l2(0.01),
+			U_regularizer=l2(0.01),
+			dropout_W=0.2,
+			dropout_U=0.2,
+			return_sequences=True),
+	LSTM(weights.shape[1]/2,
+			W_regularizer=l2(0.02),
+			U_regularizer=l2(0.02),
+			dropout_W=0.1,
+			dropout_U=0.1,
+			return_sequences=False),
 	Dense(1),
 	Activation('sigmoid')
 ])
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
 
 # train model
 model.fit(X_train, y_train, nb_epoch=5, batch_size=128)
