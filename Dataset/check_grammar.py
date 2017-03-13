@@ -30,21 +30,22 @@ model = Sequential([
 					output_dim=weights.shape[1],
 					weights=[weights],
 					input_length=max_sentence_length),
-	Convolution1D(nb_filter=32, filter_length=3, border_mode='same', activation='relu'),
+	MaxPooling1D(pool_length=5),
+	GRU(weights.shape[1],
+			W_regularizer=l2(0.05),
+			dropout_W=0.2,
+			return_sequences=True),
 	MaxPooling1D(pool_length=2),
-	LSTM(weights.shape[1]/2,
-			W_regularizer=l2(0.02),
-			U_regularizer=l2(0.02),
+	GRU(int(weights.shape[1]/2),
+			W_regularizer=l2(0.05),
 			dropout_W=0.1,
-			dropout_U=0.1,
 			return_sequences=False),
-	Dense(1),
-	Activation('sigmoid')
+	Dense(1, activation = "sigmoid")
 ])
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 # train model
-model.fit(X_train, y_train, nb_epoch=5, batch_size=128)
+model.fit(X_train, y_train, nb_epoch=2, batch_size=5)
 
 # Final evaluation of the model
 scores = model.evaluate(X_test, y_test, verbose=0)
