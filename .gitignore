@@ -1,3 +1,4 @@
 *.sgml
 *.p
 *.pyc
+*.csv

@@ -28,8 +28,17 @@ def efficientNucle():
 	f.close()
 
 def editParagraphs(soup):
+	import nltk
+	import re
+	tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+	
 	paragraphs = []
-	for p in soup.textword.findChildren('p'): paragraphs += p
+	original = []
+	for p in soup.textword.findChildren('p'): paragraphs += p	
+	for p in paragraphs: 
+		p = re.sub('\n', '', p)
+		original.append(str(p))
+	
 	mistakelis = []
 	for mistake in soup.annotation.findChildren('mistake'):
 		mistakelis.append([mistake.correction.text, int(mistake['start_par']) - 1,
@@ -45,22 +54,27 @@ def editParagraphs(soup):
 		p = p[:shift + m[2]] + m[0] + p[shift + m[3]:]
 		paragraphs[m[1]] = p
 
-	import re
-	import nltk
-	tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 	sentences = []
 	for p in paragraphs:
 		p = re.sub(' +', ' ', p)
 		p = re.sub(' \.', '.', p)
 		p = re.sub('\n', '', p)
-		sentences += tokenizer.tokenize(p)
-
-	return sentences
+		sentences.append(str(p))
+	
+	zipped = zip(original, sentences)
+	return zipped
 
 def makeCSV():
+	import csv
 	f = open('nucle3.2.p', 'r')
 	soup = pickle.load(f)
+	f.close()
 
 	senlis = []
 	for doc in soup.findChildren('doc'): senlis += editParagraphs(doc)
-	f.close()
+	
+	f = open('nucle3.2.csv', 'w')
+	write = csv.writer(f)
+	for row in senlis: write.writerow(row)
+
+makeCSV()
