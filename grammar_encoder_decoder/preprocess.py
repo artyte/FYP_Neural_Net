@@ -1,25 +1,66 @@
+from bs4 import BeautifulSoup as bs
 import sys
 import codecs
+import pickle
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-from bs4 import BeautifulSoup as bs
-import pickle
-f = open('nucle3.2.p', 'r')
-soup = pickle.load(f)
+def calculateShift(shift_influ, word_len, start_index, end_index):
+	shift = word_len - (end_index - start_index)
+	accu = 0
+	i = 0
+	for obj in shift_influ:
+		if start_index < obj[0]:
+			shift_influ.insert(i, [start_index, shift])
+			break
+		else:
+			i += 1
+			accu += obj[1]
 
-paragraphs = []
-for p in soup.textword.findChildren('p'): paragraphs += p
-mistakelis = []
-for mistake in soup.annotation.findChildren('mistake'):
-	mistakelis.append([mistake.correction.text, int(mistake['start_par']) - 1, int(mistake['start_off']), int(mistake['end_off'])])
+	if i == len(shift_influ): shift_influ.insert(i, [start_index, shift])
+	return accu + 1
 
-for p in paragraphs: print p
+def efficientNucle():
+	sys.setrecursionlimit(10000000)
+	soup = bs(open("nucle3.2.sgml"), "lxml")
+	f = open('nucle3.2.p', 'w')
+	pickle.dump(soup, f)
+	f.close()
 
-for mistake in mistakelis:
-	para = paragraphs[mistake[1]]
-	para = para[:mistake[2]] + mistake[0] + para[mistake[3]:]
-	paragraphs[mistake[1]] = para
+def editParagraphs(soup):
+	paragraphs = []
+	for p in soup.textword.findChildren('p'): paragraphs += p
+	mistakelis = []
+	for mistake in soup.annotation.findChildren('mistake'):
+		mistakelis.append([mistake.correction.text, int(mistake['start_par']) - 1,
+						int(mistake['start_off']), int(mistake['end_off'])])
 
-for p in paragraphs: print p
-f.close()
+	shift_influ = []
+	prev_par = 0
+	for m in mistakelis:
+		if m[1] != prev_par: shift_influ = []
+		prev_par = m[1]
+		p = paragraphs[m[1]]
+		shift = calculateShift(shift_influ, len(m[0]), m[2], m[3])
+		p = p[:shift + m[2]] + m[0] + p[shift + m[3]:]
+		paragraphs[m[1]] = p
+
+	import re
+	import nltk
+	tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+	sentences = []
+	for p in paragraphs:
+		p = re.sub(' +', ' ', p)
+		p = re.sub(' \.', '.', p)
+		p = re.sub('\n', '', p)
+		sentences += tokenizer.tokenize(p)
+
+	return sentences
+
+def makeCSV():
+	f = open('nucle3.2.p', 'r')
+	soup = pickle.load(f)
+
+	senlis = []
+	for doc in soup.findChildren('doc'): senlis += editParagraphs(doc)
+	f.close()
