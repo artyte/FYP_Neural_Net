@@ -90,7 +90,7 @@ def tokenizeAll(data):
 
 	return original, edited
 
-def produceDataFiles(sentences, weight_save, index_save, filename):
+def produceDataFiles(sentences):
 	from gensim.models import Word2Vec as w2v
 	import multiprocessing as mp
 	import numpy as np
@@ -99,12 +99,18 @@ def produceDataFiles(sentences, weight_save, index_save, filename):
 	model = w2v(sentences, sg = 1, seed = 1, workers = mp.cpu_count(),
 				size = 500, min_count = 0, window = 7, iter = 6)
 	weights = model.syn0
-	if weight_save: np.save(open("embeds.npy", 'wb'), weights)
-	if index_save:
-		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-		f = open(filename, 'w')
-		f.write(json.dumps(vocab))
-		f.close()
+	np.save(open("embeds.npy", 'wb'), weights)
+	vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+	reverse_vocab = dict([(v.index, k) for k, v in model.vocab.items()])
+	for k, v in model.vocab.items():
+		print v
+		print v.index
+	f = open("index.json", 'w')
+	f.write(json.dumps(vocab))
+	f.close()
+	f = open("reverse_index.json", 'w')
+	f.write(json.dumps(reverse_vocab))
+	f.close()
 
 def prepareInput():
 	import csv
@@ -122,8 +128,6 @@ def prepareInput():
 
 	sentences_train_input, sentences_train_output = tokenizeAll(train_data)
 	sentences_test_input, sentences_test_output = tokenizeAll(test_data)
-	produceDataFiles(train_data + test_data, True, False, "")
-	produceDataFiles(train_data, False, True, "training_data.json")
-	produceDataFiles(test_data, False, True, "test_data.json")
+	produceDataFiles(sentences_train_input + sentences_train_output + sentences_test_input + sentences_test_output)
 
 prepareInput()
