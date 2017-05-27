@@ -90,26 +90,37 @@ def tokenizeAll(data):
 
 	return original, edited
 
-def produceDataFiles(sentences):
+def indexAll(sentences, word_dict, filename):
+	sentences_tmp = []
+	for sentence in sentences:
+		sentence_tmp = []
+		for word in sentence:
+			sentence_tmp.append(int(word_dict[word]) + 1)
+		sentences_tmp.append(sentence_tmp)
+
+	import pickle
+	f = open(filename, 'w')
+	pickle.dump(sentences_tmp, f)
+	f.close()
+
+def produceDataFiles(train_input, train_output, test_input, test_output):
 	from gensim.models import Word2Vec as w2v
 	import multiprocessing as mp
 	import numpy as np
-	import json
+	import pickle
 
-	model = w2v(sentences, sg = 1, seed = 1, workers = mp.cpu_count(),
-				size = 500, min_count = 0, window = 7, iter = 6)
+	model = w2v(train_input + train_output + test_input + test_output, sg = 1, seed = 1,
+		workers = mp.cpu_count(), size = 300, min_count = 0, window = 7, iter = 4)
 	weights = model.syn0
 	np.save(open("embeds.npy", 'wb'), weights)
 	vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-	reverse_vocab = dict([(v.index, k) for k, v in model.vocab.items()])
-	for k, v in model.vocab.items():
-		print v
-		print v.index
-	f = open("index.json", 'w')
-	f.write(json.dumps(vocab))
-	f.close()
-	f = open("reverse_index.json", 'w')
-	f.write(json.dumps(reverse_vocab))
+	indexAll(train_input, vocab, 'training_input_vectors.p')
+	indexAll(train_output, vocab, 'training_output_vectors.p')
+	indexAll(test_input, vocab, 'testing_input_vectors.p')
+	indexAll(test_output, vocab, 'testing_output_vectors.p')
+	vocab = dict([(v.index, k) for k, v in model.vocab.items()])
+	f = open("reverse_index.p", 'w')
+	pickle.dump(vocab, f)
 	f.close()
 
 def prepareInput():
@@ -126,8 +137,8 @@ def prepareInput():
 		else: test_data.append(row)
 	f.close()
 
-	sentences_train_input, sentences_train_output = tokenizeAll(train_data)
-	sentences_test_input, sentences_test_output = tokenizeAll(test_data)
-	produceDataFiles(sentences_train_input + sentences_train_output + sentences_test_input + sentences_test_output)
+	train_input, train_output = tokenizeAll(train_data)
+	test_input, test_output = tokenizeAll(test_data)
+	produceDataFiles(train_input, train_output, test_input, test_output)
 
 prepareInput()
