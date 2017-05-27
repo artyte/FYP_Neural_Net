@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup as bs
 import sys
 import codecs
-import pickle
 reload(sys)
 sys.setdefaultencoding('utf8')
 
@@ -21,6 +20,7 @@ def calculateShift(shift_influ, word_len, start_index, end_index):
 	return accu + 1
 
 def efficientNucle():
+	import pickle
 	sys.setrecursionlimit(10000000)
 	soup = bs(open("nucle3.2.sgml"), "lxml")
 	f = open('nucle3.2.p', 'w')
@@ -31,14 +31,14 @@ def editParagraphs(soup):
 	import nltk
 	import re
 	tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-	
+
 	paragraphs = []
 	original = []
-	for p in soup.textword.findChildren('p'): paragraphs += p	
-	for p in paragraphs: 
+	for p in soup.textword.findChildren('p'): paragraphs += p
+	for p in paragraphs:
 		p = re.sub('\n', '', p)
 		original.append(str(p))
-	
+
 	mistakelis = []
 	for mistake in soup.annotation.findChildren('mistake'):
 		mistakelis.append([mistake.correction.text, int(mistake['start_par']) - 1,
@@ -60,21 +60,70 @@ def editParagraphs(soup):
 		p = re.sub(' \.', '.', p)
 		p = re.sub('\n', '', p)
 		sentences.append(str(p))
-	
+
 	zipped = zip(original, sentences)
 	return zipped
 
 def makeCSV():
 	import csv
+	import pickle
 	f = open('nucle3.2.p', 'r')
 	soup = pickle.load(f)
 	f.close()
 
 	senlis = []
 	for doc in soup.findChildren('doc'): senlis += editParagraphs(doc)
-	
+
 	f = open('nucle3.2.csv', 'w')
 	write = csv.writer(f)
 	for row in senlis: write.writerow(row)
+	f.close()
 
-makeCSV()
+def tokenizeAll(data):
+	from nltk.tokenize import word_tokenize as wt
+
+	original = []
+	edited = []
+	for sentence in data:
+		original.append(wt(sentence[0]))
+		edited.append(wt(sentence[1]))
+
+	return original, edited
+
+def produceDataFiles(sentences, weight_save, index_save, filename):
+	from gensim.models import Word2Vec as w2v
+	import multiprocessing as mp
+	import numpy as np
+	import json
+
+	model = w2v(sentences, sg = 1, seed = 1, workers = mp.cpu_count(),
+				size = 500, min_count = 0, window = 7, iter = 6)
+	weights = model.syn0
+	if weight_save: np.save(open("embeds.npy", 'wb'), weights)
+	if index_save:
+		vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+		f = open(filename, 'w')
+		f.write(json.dumps(vocab))
+		f.close()
+
+def prepareInput():
+	import csv
+	f = open('nucle3.2.csv', 'r')
+	read = csv.reader(f)
+	row_count = sum(1 for row in read)
+	f.seek(0)
+
+	train_data = []
+	test_data = []
+	for index, row in enumerate(read):
+		if(index < int(row_count * 0.8)): train_data.append(row)
+		else: test_data.append(row)
+	f.close()
+
+	sentences_train_input, sentences_train_output = tokenizeAll(train_data)
+	sentences_test_input, sentences_test_output = tokenizeAll(test_data)
+	produceDataFiles(train_data + test_data, True, False, "")
+	produceDataFiles(train_data, False, True, "training_data.json")
+	produceDataFiles(test_data, False, True, "test_data.json")
+
+prepareInput()
