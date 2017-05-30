@@ -4,6 +4,18 @@ import codecs
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+def pickle_dump(filename, data):
+    import pickle
+    f = open(filename, 'r')
+	data = pickle.dump(f, data)
+	f.close()
+    return data
+
+def efficient_nucle():
+	sys.setrecursionlimit(10000000)
+	soup = bs(open("nucle3.2.sgml"), "lxml")
+	pickle_dump('nucle3.2.p', soup)
+
 def calculate_shift(shift_influ, word_len, start_index, end_index):
 	shift = word_len - (end_index - start_index)
 	accu = 0
@@ -19,18 +31,8 @@ def calculate_shift(shift_influ, word_len, start_index, end_index):
 	if i == len(shift_influ): shift_influ.insert(i, [start_index, shift])
 	return accu + 1
 
-def efficient_nucle():
-	import pickle
-	sys.setrecursionlimit(10000000)
-	soup = bs(open("nucle3.2.sgml"), "lxml")
-	f = open('nucle3.2.p', 'w')
-	pickle.dump(soup, f)
-	f.close()
-
 def edit_paragraphs(soup):
-	import nltk
 	import re
-	tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 
 	paragraphs = []
 	original = []
@@ -95,33 +97,44 @@ def index_all(sentences, word_dict, filename):
 	for sentence in sentences:
 		sentence_tmp = []
 		for word in sentence:
-			sentence_tmp.append(int(word_dict[word]))
+			if word_dict[word] == None: sentence_tmp.append(0)
+			else: sentence_tmp.append(int(word_dict[word]))
 		sentences_tmp.append(sentence_tmp)
 
-	import pickle
-	f = open(filename, 'w')
-	pickle.dump(sentences_tmp, f)
-	f.close()
+	pickle_dump(filename, sentences_tmp)
 
 def produce_data_files(train_input, train_output, test_input, test_output):
-	from gensim.models import Word2Vec as w2v
-	import multiprocessing as mp
 	import numpy as np
-	import pickle
 
-	model = w2v(train_input + train_output + test_input + test_output, sg = 1, seed = 1,
-		workers = mp.cpu_count(), size = 300, min_count = 0, window = 7, iter = 4)
-	weights = model.syn0
-	np.save(open("embeds.npy", 'wb'), weights)
-	vocab = dict([(k, v.index) for k, v in model.vocab.items()])
+	vocab = {}
+	reverse_vocab = {}
+	f = open('glove.6B.100d.txt', 'r')
+	vocab['##NULL##'] = [0,0]
+	reverse_vocab[0] = '##NULL##'
+
+	index = 1
+	for line in f:
+		values = line.split()
+		word = values[0]
+		coefs = np.asarray(values[1:], dtype='float32')
+		vocab[word] = [coefs, index]
+		reverse_vocab[index] = word
+		index++
+	f.close()
+
+	# edit this paragraph
+	embedding_matrix = np.zeros((len(word_index) + 1, 100))
+	for word, i in word_index.items():
+		embedding_vector = vocab.get(word)[0]
+		if embedding_vector is not None: embedding_matrix[i] = embedding_vector
+
+	pickle_dump('embeds.p', embedding_matrix)
 	index_all(train_input, vocab, 'training_input_vectors.p')
 	index_all(train_output, vocab, 'training_output_vectors.p')
 	index_all(test_input, vocab, 'testing_input_vectors.p')
 	index_all(test_output, vocab, 'testing_output_vectors.p')
-	vocab = dict([(v.index, k) for k, v in model.vocab.items()])
-	f = open("reverse_index.p", 'w')
-	pickle.dump(vocab, f)
-	f.close()
+	pickle_dump('index.p', vocab)
+	pickle_dump('reverse_index.p', reverse_vocab)
 
 def prepare_input():
 	import csv

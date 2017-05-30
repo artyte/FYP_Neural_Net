@@ -11,22 +11,23 @@ def pickle_return(filename):
     return data
 
 def extract_data():
-    import numpy as np
-    weights = np.load(open("embeds.npy", 'rb'))
-	X_train = pickle_return('training_input_vectors.p')
-	y_train = pickle_return('training_output_vectors.p')
+    weights = pickle_return('embeds.p')
+    X_train = pickle_return('training_input_vectors.p')
+    y_train = pickle_return('training_output_vectors.p')
     X_test = pickle_return('testing_input_vectors.p')
     y_test = pickle_return('testing_output_vectors.p')
+    index_map = pickle_return('index.p')
     reverse_index = pickle_return('reverse_index.p')
-    return weights, X_train, y_train, X_test, y_test, reverse_index
+    return weights, X_train, y_train, X_test, y_test, index_map, reverse_index
 
 def train_model(weights, X_train, y_train):
     from keras.models import Sequential
     from keras.layers.embeddings import Embedding
     from seq2seq.models import Seq2Seq
     model = Sequential()
-    mode.add(Embedding(weights=[weights]))
-    model.add(Seq2Seq(peek=True))
+    model.add(Embedding(num_words, 100, weights=[weights],
+            input_length=1000, trainable=False))
+    model.add(Seq2Seq(peek=True)) # edit this
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics='rmsprop')
     model.fit(X_train, y_train, nb_epoch=5, batch_size=5)
     return model
@@ -41,11 +42,19 @@ def test_default_data(model, X_test, y_test):
     scores = model.evaluate(X_test, y_test, verbose=0)
     print("Accuracy: %.2f%%" % (scores[1]*100))
 
-def test_custom_data(model, index, reverse_index):
+def test_custom_data(model, index_map, reverse_index_map):
     data = raw_input("Enter a sentence: ")
-    # do index conversion here
+    from nltk.tokenize import word_tokenize as wt
+    sentence = wt(data)
+    sentence_tmp = []
+    for word in sentence:
+        if index_map[word] == None: sentence_tmp.append(0)
+        else: sentence_tmp.append(int(index_map[word]))
+
     result = model.predict(data, verbose=1)
 
-    sentence = []
+    predict = []
     for num in result:
-        sentence += reverse_index[num]
+        if reverse_index_map[num] == None: predict += 0
+        else: predict += reverse_index_map[num]
+    print " ".join(predict)
