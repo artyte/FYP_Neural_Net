@@ -4,7 +4,8 @@ Grammar Correction with Deep Learning
 
 Sub Project:
 - basic ANN ([reference tutorial](https://www.tensorflow.org/tutorials/mnist/beginners/))
-- LSTM binary classifier on English sentences with wrong grammar <- currently attempting
+- LSTM binary classifier on English sentences with wrong grammar
+- encoder-decoder English sentence corrector
 
 Status:
 - Scraped data off wiki pages into csv
@@ -13,4 +14,3 @@ Status:
 - all code callable through classes
 - created list of sequence of indices
 - created LSTM neural net model
-

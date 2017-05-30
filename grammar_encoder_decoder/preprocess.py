@@ -4,7 +4,7 @@ import codecs
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-def calculateShift(shift_influ, word_len, start_index, end_index):
+def calculate_shift(shift_influ, word_len, start_index, end_index):
 	shift = word_len - (end_index - start_index)
 	accu = 0
 	i = 0
@@ -19,7 +19,7 @@ def calculateShift(shift_influ, word_len, start_index, end_index):
 	if i == len(shift_influ): shift_influ.insert(i, [start_index, shift])
 	return accu + 1
 
-def efficientNucle():
+def efficient_nucle():
 	import pickle
 	sys.setrecursionlimit(10000000)
 	soup = bs(open("nucle3.2.sgml"), "lxml")
@@ -27,7 +27,7 @@ def efficientNucle():
 	pickle.dump(soup, f)
 	f.close()
 
-def editParagraphs(soup):
+def edit_paragraphs(soup):
 	import nltk
 	import re
 	tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
@@ -50,7 +50,7 @@ def editParagraphs(soup):
 		if m[1] != prev_par: shift_influ = []
 		prev_par = m[1]
 		p = paragraphs[m[1]]
-		shift = calculateShift(shift_influ, len(m[0]), m[2], m[3])
+		shift = calculate_shift(shift_influ, len(m[0]), m[2], m[3])
 		p = p[:shift + m[2]] + m[0] + p[shift + m[3]:]
 		paragraphs[m[1]] = p
 
@@ -64,7 +64,7 @@ def editParagraphs(soup):
 	zipped = zip(original, sentences)
 	return zipped
 
-def makeCSV():
+def make_csv():
 	import csv
 	import pickle
 	f = open('nucle3.2.p', 'r')
@@ -72,14 +72,14 @@ def makeCSV():
 	f.close()
 
 	senlis = []
-	for doc in soup.findChildren('doc'): senlis += editParagraphs(doc)
+	for doc in soup.findChildren('doc'): senlis += edit_paragraphs(doc)
 
 	f = open('nucle3.2.csv', 'w')
 	write = csv.writer(f)
 	for row in senlis: write.writerow(row)
 	f.close()
 
-def tokenizeAll(data):
+def tokenize_all(data):
 	from nltk.tokenize import word_tokenize as wt
 
 	original = []
@@ -90,12 +90,12 @@ def tokenizeAll(data):
 
 	return original, edited
 
-def indexAll(sentences, word_dict, filename):
+def index_all(sentences, word_dict, filename):
 	sentences_tmp = []
 	for sentence in sentences:
 		sentence_tmp = []
 		for word in sentence:
-			sentence_tmp.append(int(word_dict[word]) + 1)
+			sentence_tmp.append(int(word_dict[word]))
 		sentences_tmp.append(sentence_tmp)
 
 	import pickle
@@ -103,7 +103,7 @@ def indexAll(sentences, word_dict, filename):
 	pickle.dump(sentences_tmp, f)
 	f.close()
 
-def produceDataFiles(train_input, train_output, test_input, test_output):
+def produce_data_files(train_input, train_output, test_input, test_output):
 	from gensim.models import Word2Vec as w2v
 	import multiprocessing as mp
 	import numpy as np
@@ -114,16 +114,16 @@ def produceDataFiles(train_input, train_output, test_input, test_output):
 	weights = model.syn0
 	np.save(open("embeds.npy", 'wb'), weights)
 	vocab = dict([(k, v.index) for k, v in model.vocab.items()])
-	indexAll(train_input, vocab, 'training_input_vectors.p')
-	indexAll(train_output, vocab, 'training_output_vectors.p')
-	indexAll(test_input, vocab, 'testing_input_vectors.p')
-	indexAll(test_output, vocab, 'testing_output_vectors.p')
+	index_all(train_input, vocab, 'training_input_vectors.p')
+	index_all(train_output, vocab, 'training_output_vectors.p')
+	index_all(test_input, vocab, 'testing_input_vectors.p')
+	index_all(test_output, vocab, 'testing_output_vectors.p')
 	vocab = dict([(v.index, k) for k, v in model.vocab.items()])
 	f = open("reverse_index.p", 'w')
 	pickle.dump(vocab, f)
 	f.close()
 
-def prepareInput():
+def prepare_input():
 	import csv
 	f = open('nucle3.2.csv', 'r')
 	read = csv.reader(f)
@@ -137,8 +137,8 @@ def prepareInput():
 		else: test_data.append(row)
 	f.close()
 
-	train_input, train_output = tokenizeAll(train_data)
-	test_input, test_output = tokenizeAll(test_data)
-	produceDataFiles(train_input, train_output, test_input, test_output)
+	train_input, train_output = tokenize_all(train_data)
+	test_input, test_output = tokenize_all(test_data)
+	produce_data_files(train_input, train_output, test_input, test_output)
 
-prepareInput()
+prepare_input()
