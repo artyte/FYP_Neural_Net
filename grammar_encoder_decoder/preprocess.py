@@ -98,7 +98,7 @@ def index_all(sentences, word_dict, filename):
 		sentence_tmp = []
 		for word in sentence:
 			if word_dict[word] == None: sentence_tmp.append(0)
-			else: sentence_tmp.append(int(word_dict[word]))
+            else: sentence_tmp.append(int(word_dict[word][1]))
 		sentences_tmp.append(sentence_tmp)
 
 	pickle_dump(filename, sentences_tmp)
@@ -122,11 +122,9 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 		index++
 	f.close()
 
-	# edit this paragraph
-	embedding_matrix = np.zeros((len(word_index) + 1, 100))
-	for word, i in word_index.items():
-		embedding_vector = vocab.get(word)[0]
-		if embedding_vector is not None: embedding_matrix[i] = embedding_vector
+	embedding_matrix = np.zeros((len(vocab), 100))
+	for vector, index in vocab.items():
+		embedding_matrix[index] = vector
 
 	pickle_dump('embeds.p', embedding_matrix)
 	index_all(train_input, vocab, 'training_input_vectors.p')
