@@ -6,7 +6,7 @@ sys.setdefaultencoding('utf8')
 
 def pickle_dump(filename, data):
 	import pickle
-	f = open(filename, 'r')
+	f = open(filename, 'w')
 	pickle.dump(data, f)
 	f.close()
 
@@ -75,6 +75,15 @@ def make_csv():
 	senlis = []
 	for doc in soup.findChildren('doc'): senlis += edit_paragraphs(doc)
 
+	'''
+	tmp = []
+	for sen in senlis:
+		tmp.append(len(sen[0].split()))
+	import matplotlib.pyplot as plt
+	plt.hist(tmp, 100)
+	plt.show()
+	'''
+
 	f = open('nucle3.2.csv', 'w')
 	write = csv.writer(f)
 	for row in senlis: write.writerow(row)
@@ -96,10 +105,11 @@ def index_all(sentences, word_dict, filename):
 	for sentence in sentences:
 		sentence_tmp = []
 		for word in sentence:
-			if word_dict[word] == None: sentence_tmp.append(0)
-            else: sentence_tmp.append(int(word_dict[word][1]))
+			word = word.lower()
+			if word not in word_dict: sentence_tmp.append(0)
+			else: sentence_tmp.append(word_dict[word][1])
 		sentences_tmp.append(sentence_tmp)
-		
+
 	pickle_dump(filename, sentences_tmp)
 
 def produce_data_files(train_input, train_output, test_input, test_output):
@@ -107,7 +117,7 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 
 	vocab = {}
 	reverse_vocab = {}
-	f = open('glove.6B.100d.txt', 'r')
+	f = open('glove.6B.200d.txt', 'r')
 	vocab['##NULL##'] = [0,0]
 	reverse_vocab[0] = '##NULL##'
 
@@ -118,14 +128,21 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 		coefs = np.asarray(values[1:], dtype='float32')
 		vocab[word] = [coefs, index]
 		reverse_vocab[index] = word
-		index++
+		index += 1
 	f.close()
 
-	embedding_matrix = np.zeros((len(vocab), 100))
-	for vector, index in vocab.items():
-		embedding_matrix[index] = vector\
-	
-	pickle_dump('embeds.p', embedding_matrix)
+	embedding_matrix = np.zeros((len(vocab), 200))
+	for word, index in vocab.items():
+		embedding_matrix[index[1]] = index[0]
+
+	'''
+	print embedding_matrix.shape[0]
+	print embedding_matrix.shape[1]
+	return
+	'''
+
+	np.save(open("embeds.npy", 'wb'), embedding_matrix)
+	#pickle_dump('embeds.p', embedding_matrix)
 	index_all(train_input, vocab, 'training_input_vectors.p')
 	index_all(train_output, vocab, 'training_output_vectors.p')
 	index_all(test_input, vocab, 'testing_input_vectors.p')
@@ -151,7 +168,6 @@ def prepare_input():
 	test_input, test_output = tokenize_all(test_data)
 	produce_data_files(train_input, train_output, test_input, test_output)
 
-efficient_nucle()
-make_csv()
+#efficient_nucle()
+#make_csv()
 prepare_input()
-
