@@ -3,14 +3,6 @@ import codecs
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-output_dim = [200, 20, 10, 1]
-repeat = 200
-max_len = 200
-epochs = 5
-batch = 32
-grad_desc = 'adam'
-error_calc = 'binary_crossentropy'
-
 def pickle_return(filename):
 	import pickle
 	f = open(filename, 'r')
@@ -22,16 +14,14 @@ def extract_data():
 	from keras.preprocessing.sequence import pad_sequences as ps
 	from keras.utils.np_utils import to_categorical as tc
 	import numpy as np
+
+	max_len = 200
 	weights = np.load(open("embeds.npy", 'rb'))
-	X_train = ps(pickle_return('training_input_vectors.p'), maxlen=max_len)
-	y_train = ps(pickle_return('training_output_vectors.p'), maxlen=max_len)
-	X_test = ps(pickle_return('testing_input_vectors.p'), maxlen=max_len)
-	y_test = ps(pickle_return('testing_output_vectors.p'), maxlen=max_len)
+	X_train = np.asarray(ps(pickle_return('training_input_vectors.p'), maxlen=max_len))
+	y_train = np.asarray(ps(pickle_return('training_output_vectors.p'), maxlen=max_len))
+	X_test = np.asarray(ps(pickle_return('testing_input_vectors.p'), maxlen=max_len))
+	y_test = np.asarray(ps(pickle_return('testing_output_vectors.p'), maxlen=max_len))
 	'''
-	X_train = np.asarray(X_train)
-	y_train = np.asarray(y_train)
-	X_test = np.asarray(X_test)
-	y_test = np.asarray(y_test)
 	np.reshape(X_train, (X_train.shape[1], X_train.shape[2], 1))
 	np.reshape(y_train, (y_train.shape[1], y_train.shape[2], 1))
 	np.reshape(X_test, (X_test.shape[1], X_test.shape[2], 1))
@@ -39,51 +29,33 @@ def extract_data():
 	'''
 	index_map = pickle_return('index.p')
 	reverse_index = pickle_return('reverse_index.p')
-	print np.asarray(X_train).shape
 	return weights, X_train, y_train, X_test, y_test, index_map, reverse_index
 
 def train_model(weights, X_train, y_train):
 	from keras.models import Sequential
-	from keras.layers import Reshape, Embedding, Dense, RepeatVector,TimeDistributed, GRU, LSTM
-	#from recurrentshop import RecurrentSequential, LSTMCell, GRUCell
+	from keras.layers import Flatten, Embedding, Dense, RepeatVector, GRU, LSTM
+	from keras.optimizers import Adam
 
-	model = Sequential()
-	model.add(Embedding(input_dim=weights.shape[0],
-						output_dim=output_dim[0],
-						weights=[weights],
-						input_length=200,
-						trainable=False))
-	'''
-	encoder = RecurrentSequential(state_initializer='random_normal',
-								state_sync=True,
-								teacher_force=True,
-								return_sequences=False)
-	encoder.add(LSTMCell(output_dim[1]))
-	model.add(encoder.get_cell())
-	'''
-	model.add(LSTM(output_dim[1]))
-	model.add(RepeatVector(repeat))
-	'''
-	decoder = RecurrentSequential(state_initializer='random_normal',
-								readout='add',
-								state_sync=True,
-								teacher_force=True,
-								return_sequences=True)
-	decoder.add(GRUCell(output_dim[2]))
-	model.add(decoder.get_cell())
-	'''
-	model.add(GRU(output_dim[2], return_sequences=True))
+	model = Sequential([
+		Embedding(input_dim=weights.shape[0],
+							output_dim=weights.shape[1],
+							weights=[weights],
+							input_length=200,
+							trainable=False),
+		LSTM(150, return_sequences=True),
+		LSTM(100, return_sequences=False),
+		RepeatVector(200),
+		GRU(80, return_sequences=True),
+		GRU(50, return_sequences=True),
+		GRU(20, return_sequences=True),
+		Flatten(),
+		Dense(200, activation = 'sigmoid')
+	])
 	print model.summary()
-	model.add(TimeDistributed(Dense(output_dim[3], activation = 'sigmoid')))
-	model.compile(optimizer=grad_desc, loss=error_calc, metrics=['accuracy'])
-	model.fit(X_train, y_train, nb_epoch=epochs, batch_size=batch)
-	return model
-
-def save_model(model):
-	import pickle
-	f = open('model.p', 'w')
-	pickle.dump(model, f)
-	f.close()
+	adam = Adam(lr=0.01, beta_1=0.90, beta_2=0.999, epsilon=1e-06, decay=0.00)
+	model.compile(optimizer=adam, loss='categorical_crossentropy', metrics=['accuracy'])
+	model.fit(X_train, y_train, nb_epoch=20, batch_size=50)
+	model.save('model')
 
 def test_default_data(model, X_test, y_test):
 	scores = model.evaluate(X_test, y_test, verbose=0)
@@ -107,4 +79,4 @@ def test_custom_data(model, index_map, reverse_index_map):
 	print " ".join(predict)
 
 weights, X_train, y_train, X_test, y_test, index_map, reverse_index = extract_data()
-save_model(train_model(weights, X_train, y_train))
+train_model(weights, X_train, y_train)
