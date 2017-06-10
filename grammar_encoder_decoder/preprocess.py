@@ -110,30 +110,81 @@ def index_all(sentences, word_dict, filename):
 			else: sentence_tmp.append(word_dict[word][1])
 		sentences_tmp.append(sentence_tmp)
 
-	pickle_dump(filename, sentences_tmp)
+	import numpy as np
+	np.save(open(filename, 'wb'), np.asarray(sentences_tmp))
+
+def get_unique(train_input, train_output, test_input, test_output):
+	a = train_input + train_output + test_input + test_output
+	dic = {}
+	for lis in a:
+	    for element in lis:
+	        element = element.lower()
+	        if element in dic: dic[element] += 1
+	        else: dic[element] = 1
+
+	dic = [list(elem) for elem in dic.items()]
+
+	from operator import itemgetter
+	dic = sorted(dic, key=itemgetter(0))
+	dic = sorted(dic, key=itemgetter(1), reverse=True)
+	lis = dic
+
+	dic = {}
+	reverse_dic = {}
+	index = 1
+	for array in lis:
+	    dic[array[0]] = [array[1], index]
+	    reverse_dic[index] = array[0]
+	    index += 1
+
+	return dic, reverse_dic
+
+def trim(vocab, reverse_vocab):
+	for item in vocab.keys():
+	    if type(vocab[item][0]) == int:
+			del reverse_vocab[vocab[item][1]]
+			del vocab[item]
+
+	vocab = [[key, vocab[key][0], vocab[key][1]] for key in vocab.keys()]
+	reverse_vocab = [[key, reverse_vocab[key]] for key in reverse_vocab.keys()]
+
+	from operator import itemgetter
+	vocab = sorted(vocab, key=itemgetter(2))
+	reverse_vocab = sorted(reverse_vocab, key=itemgetter(0))
+
+	new_vocab = {}
+	new_reverse_vocab = {}
+	index = 1
+	for array in vocab:
+		new_vocab[array[0]] = [array[1], index]
+		index += 1
+
+	index = 0
+	for array in reverse_vocab:
+		new_reverse_vocab[index] = array[1]
+		index += 1
+
+	return new_vocab, new_reverse_vocab
 
 def produce_data_files(train_input, train_output, test_input, test_output):
+
+	vocab, reverse_vocab = get_unique(train_input, train_output, test_input, test_output)
+	reverse_vocab[0] = '#null#'
+
 	import numpy as np
-
-	vocab = {}
-	reverse_vocab = {}
-	f = open('glove.6B.200d.txt', 'r')
-	vocab['##NULL##'] = [0,0]
-	reverse_vocab[0] = '##NULL##'
-
-	index = 1
+	f = open('glove.6B.300d.txt', 'r')
 	for line in f:
 		values = line.split()
-		word = values[0]
+		word = values[0].lower()
+		if word not in vocab: continue
 		coefs = np.asarray(values[1:], dtype='float32')
-		vocab[word] = [coefs, index]
-		reverse_vocab[index] = word
-		index += 1
+		vocab[word] = [coefs, vocab[word][1]]
 	f.close()
 
-	embedding_matrix = np.zeros((len(vocab), 200))
-	for word, index in vocab.items():
-		embedding_matrix[index[1]] = index[0]
+	vocab, reverse_vocab = trim(vocab, reverse_vocab)
+
+	embedding_matrix = np.zeros((len(vocab)+1, 300))
+	for word, array in vocab.items(): embedding_matrix[array[1]] = array[0]
 
 	'''
 	print embedding_matrix.shape[0]
@@ -142,11 +193,10 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	'''
 
 	np.save(open("embeds.npy", 'wb'), embedding_matrix)
-	#pickle_dump('embeds.p', embedding_matrix)
-	index_all(train_input, vocab, 'training_input_vectors.p')
-	index_all(train_output, vocab, 'training_output_vectors.p')
-	index_all(test_input, vocab, 'testing_input_vectors.p')
-	index_all(test_output, vocab, 'testing_output_vectors.p')
+	index_all(train_input, vocab, 'training_input_vectors.npy')
+	index_all(train_output, vocab, 'training_output_vectors.npy')
+	index_all(test_input, vocab, 'testing_input_vectors.npy')
+	index_all(test_output, vocab, 'testing_output_vectors.npy')
 	pickle_dump('index.p', vocab)
 	pickle_dump('reverse_index.p', reverse_vocab)
 
