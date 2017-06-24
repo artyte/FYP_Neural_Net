@@ -113,7 +113,7 @@ def index_all(sentences, word_dict, filename):
 	import numpy as np
 	np.save(open(filename, 'wb'), np.asarray(sentences_tmp))
 
-def get_unique(train_input, train_output, test_input, test_output):
+def get_unique(train_input, train_output, test_input, test_output, threshold=20):
 	a = train_input + train_output + test_input + test_output
 	dic = {}
 	for lis in a:
@@ -122,6 +122,14 @@ def get_unique(train_input, train_output, test_input, test_output):
 	        if element in dic: dic[element] += 1
 	        else: dic[element] = 1
 
+	'''import matplotlib.pyplot as plt
+	tmp = [dic[key] for key in dic.keys()]
+	plt.hist(tmp, 10000, facecolor='red')
+	plt.show()'''
+
+
+	for key in dic.keys():
+		if dic[key] <= threshold: del dic[key]
 	dic = [list(elem) for elem in dic.items()]
 
 	from operator import itemgetter
@@ -172,7 +180,7 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	reverse_vocab[0] = '#null#'
 
 	import numpy as np
-	f = open('glove.6B.300d.txt', 'r')
+	f = open('glove.6B.200d.txt', 'r')
 	for line in f:
 		values = line.split()
 		word = values[0].lower()
@@ -181,9 +189,10 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 		vocab[word] = [coefs, vocab[word][1]]
 	f.close()
 
-	vocab, reverse_vocab = trim(vocab, reverse_vocab)
+	vocab, reverse_vocab = trim(vocab, reverse_vocab) # some unique tokens don't have an embeding
+	print len(vocab)+1
 
-	embedding_matrix = np.zeros((len(vocab)+1, 300))
+	embedding_matrix = np.zeros((len(vocab)+1, 200))
 	for word, array in vocab.items(): embedding_matrix[array[1]] = array[0]
 
 	'''
@@ -209,8 +218,9 @@ def prepare_input():
 
 	train_data = []
 	test_data = []
+	threshold = int(row_count * 0.8)
 	for index, row in enumerate(read):
-		if(index < int(row_count * 0.8)): train_data.append(row)
+		if(index < threshold): train_data.append(row)
 		else: test_data.append(row)
 	f.close()
 
