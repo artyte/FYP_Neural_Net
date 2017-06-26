@@ -26,28 +26,28 @@ class Encoder(nn.Module):
 class Attention(nn.Module):
     def __init__():
 
-class Deocder(nn.Module):
+class Decoder(nn.Module):
     def __init__(self, hidden_size, output_size, num_layers=1, dropout=0.1):
-        super(Deocder, self).__init__()
+        super(Decoder, self).__init__()
 
-        # Define layers
-        self.attn = Attn('concat', hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size, n_layers, dropout=dropout_p)
-        self.out = nn.Linear(hidden_size, output_size)
+        self.attn = nn.Linear(hidden_size * 2, hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size, num_layers, dropout=dropout)
+        self.out = nn.Linear(hidden_size * 3, output_size)
 
-    def forward(self, input, last_hidden, encoder_outputs):
+    def forward(self, prev_output, hidden, encoder_output):
         # Calculate attention weights and apply to encoder outputs
-        attn_weights = self.attn(last_hidden[-1], encoder_outputs)
-        context = attn_weights.bmm(encoder_outputs.transpose(0, 1)) # B x 1 x N
-        context = context.transpose(0, 1) # 1 x B x N
+        attn_weight = self.attn(torch.cat((hidden[-1], encoder_output), 1))
+        context = torch.bmm(attn_weight.unsqueeze(0), encoder_output.unsqueeze(0))
 
-        # Combine embedded input word and attended context, run through RNN
-        rnn_input = torch.cat((word_embedded, context), 2)
-        output, hidden = self.gru(rnn_input, last_hidden)
+        # Get current hidden state
+        output, hidden = self.gru(torch.cat((prev_output, context), 1), prev_hidden)
 
-        # Final output layer
-        output = output.squeeze(0) # B x N
-        output = F.log_softmax(self.out(torch.cat((output, context), 1)))
+        # Obtain output
+        output = self.out(torch.cat((prev_output, hidden, context),1))
+        output = F.log_softmax(output)
+
+        # Get the index of the final output
+        final, index = output.max(0)
 
         # Return final output, hidden state, and attention weights (for visualization)
-        return output, hidden, attn_weights
+        return final, index
