@@ -3,19 +3,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 from torch.autograd import Variable
-from torch.nn.utils.rnn import pack_padded_sequence as packpad, pad_packed_sequence as padpack
 
 class Encoder(nn.Module):
     def __init__(self, embeddings, hidden_size):
         super(Encoder, self).__init__()
 
         embed_size = embeddings.size(1)
+        self.hidden_size = hidden_size
         self.embedding = nn.Embedding(embeddings.size(0), embed_size)
-        self.embedding.weight = nn.Parameter(embeddings)
+        self.embedding.weight = nn.Parameter(torch.from_numpy(embeddings).double())
         self.embedding.weight.requires_grad = False
-        self.gru = nn.GRU(embed_size, hidden_size, bidirectional=True)
+        self.gru = nn.GRU(embed_size, self.hidden_size, bidirectional=True)
 
     def forward(self, input, input_length, hidden):
+        from torch.nn.utils.rnn import pack_padded_sequence as packpad, pad_packed_sequence as padpack
         embed = self.embedding(input)
         packed = packpad(embedded, input_length)
         output, hidden = self.gru(packed, hidden)
@@ -23,16 +24,19 @@ class Encoder(nn.Module):
 
         return output, hidden
 
+    def set_weights():
+        return Variable(torch.zeros(1, 1, self.hidden_size)).cuda()
+
 class Decoder(nn.Module):
-    def __init__(self, hidden_size, output_size=1):
+    def __init__(self, hidden_size, output_size):
         super(Decoder, self).__init__()
 
         self.output_size = output_size
-        self.attn = nn.Linear(hidden_size * 2, hidden_size)
-        self.v = nn.Parameter(torch.FloatTensor(1, hidden_size))
-        self.gru = nn.GRUCell(hidden_size * 2, hidden_size)
-        self.out = nn.Linear(hidden_size * 3, hidden_size)
-        self.final = nn.Linear(hidden_size, self.output_size)
+        self.hidden_size = hidden_size
+        self.attn = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.v = nn.Parameter(torch.FloatTensor(1, self.hidden_size))
+        self.gru = nn.GRUCell(self.hidden_size * 2, self.hidden_size)
+        self.out = nn.Linear(self.hidden_size * 3, self.output_size)
 
     def forward(self, encoder_output, hidden, decoder_output):
         batch_size = encoder_outputs.size(1)
@@ -66,10 +70,53 @@ class Decoder(nn.Module):
             decoder_output = self.out(torch.cat((hidden, decoder_output, context), 1))
             decoder_output = F.softmax(decoder_output)
 
-            # used different variable name so as to maintain decoder_output's shape for next iteration
-            output = self.final(decoder_output)
-            output = F.softmax(output)
-
-            final_output[i] = output
+            final_output[i] = decoder_output
 
         return final_output
+
+    def set_weights():
+        return Variable(torch.zeros(1, 1, self.hidden_size)).cuda()
+
+def pickle_return(filename):
+	import pickle
+	f = open(filename, 'r')
+	data = pickle.load(f)
+	f.close()
+	return data
+
+def pickle_dump(filename, data):
+	import pickle
+	f = open(filename, 'w')
+	pickle.dump(data, f)
+	f.close()
+
+def recache():
+    batch = pickle_return('training_vectors.p')
+    pickle_dump('training_vectors_cache.p', batch)
+
+def random_batch(num_of_batch=50, max_len=300, word_dim=10237):
+    import numpy as np
+    import random
+    from keras.preprocessing.sequence import pad_sequences as ps
+    from keras.utils import to_categorical as tc
+
+    batch = pickle_return('training_vectors_cache.p')
+    final_input = []
+    final_output = []
+    for i in range(num_of_batch):
+        if len(batch) == 0: break
+        # use python list here instead of numpy array because numpy array doesn't have append
+        instance = random.choice(batch)
+        batch.remove(instance)
+        final_input.append(instance[0])
+        final_output.append(instance[1])
+
+    # do not repeat same possibly same random on next batch call
+    pickle_dump('training_vectors_cache.p', batch)
+
+    # pad for consistent length
+    final_input = torch.from_numpy(ps(final_input, maxlen=max_len))
+
+    # 3 ops: pad for consistent length -> turn into one hot for easy evaluation -> reshape since keras's to_categorical doesn't
+    final_output = torch.from_numpy(np.reshape(tc(ps(final_output, maxlen=max_len), num_classes=word_dim), (max_len,-1,word_dim)))
+    return final_input, final_output

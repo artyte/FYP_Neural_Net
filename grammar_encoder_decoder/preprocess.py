@@ -100,7 +100,7 @@ def tokenize_all(data):
 
 	return original, edited
 
-def index_all(sentences, word_dict, filename):
+def index_all(sentences, word_dict):
 	sentences_tmp = []
 	for sentence in sentences:
 		sentence_tmp = []
@@ -110,10 +110,9 @@ def index_all(sentences, word_dict, filename):
 			else: sentence_tmp.append(word_dict[word][1])
 		sentences_tmp.append(sentence_tmp)
 
-	import numpy as np
-	np.save(open(filename, 'wb'), np.asarray(sentences_tmp))
+	return sentences_tmp
 
-def get_unique(train_input, train_output, test_input, test_output, threshold=20):
+def get_unique(train_input, train_output, test_input, test_output, threshold=5):
 	a = train_input + train_output + test_input + test_output
 	dic = {}
 	for lis in a:
@@ -202,10 +201,12 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	'''
 
 	np.save(open("embeds.npy", 'wb'), embedding_matrix)
-	index_all(train_input, vocab, 'training_input_vectors.npy')
-	index_all(train_output, vocab, 'training_output_vectors.npy')
-	index_all(test_input, vocab, 'testing_input_vectors.npy')
-	index_all(test_output, vocab, 'testing_output_vectors.npy')
+	x = index_all(train_input, vocab)
+	y = index_all(train_output, vocab)
+	pickle_dump('training_vectors.p', zip(x,y))
+	x = index_all(test_input, vocab)
+	y = index_all(test_output, vocab)
+	pickle_dump('testing_vectors.p', zip(x,y))
 	pickle_dump('index.p', vocab)
 	pickle_dump('reverse_index.p', reverse_vocab)
 

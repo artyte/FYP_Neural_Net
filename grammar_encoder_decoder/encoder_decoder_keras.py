@@ -32,8 +32,6 @@ def extract_data():
 	reverse_index = pickle_return('reverse_index.p')
 	return weights, X_train, y_train, X_test, y_test, index_map, reverse_index
 
-
-
 def train_model(weights, X_train, y_train):
 	from keras.models import Sequential
 	from keras.layers import Flatten, Embedding, Dense, RepeatVector, GRU, LSTM, TimeDistributed
