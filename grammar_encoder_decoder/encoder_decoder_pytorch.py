@@ -8,24 +8,23 @@ class Encoder(nn.Module):
     def __init__(self, embeddings, hidden_size):
         super(Encoder, self).__init__()
 
-        embed_size = embeddings.size(1)
         self.hidden_size = hidden_size
-        self.embedding = nn.Embedding(embeddings.size(0), embed_size)
-        self.embedding.weight = nn.Parameter(torch.from_numpy(embeddings).double())
+        self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
+        self.embedding.weight = nn.Parameter(torch.from_numpy(embeddings).double()).cuda()
         self.embedding.weight.requires_grad = False
-        self.gru = nn.GRU(embed_size, self.hidden_size, bidirectional=True)
+        self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
     def forward(self, input, input_length, hidden):
-        from torch.nn.utils.rnn import pack_padded_sequence as packpad, pad_packed_sequence as padpack
+        # from torch.nn.utils.rnn import pack_padded_sequence as packpad, pad_packed_sequence as padpack
         embed = self.embedding(input)
-        packed = packpad(embedded, input_length)
-        output, hidden = self.gru(packed, hidden)
-        output, _ = padpack(output)
+        # packed = packpad(embedded, input_length)
+        output, hidden = self.gru(embed, hidden)
+        # output, _ = padpack(output)
 
         return output, hidden
 
-    def set_weights():
-        return Variable(torch.zeros(1, 1, self.hidden_size)).cuda()
+    def get_hidden(batch_size, seq_len):
+        return Variable(torch.zeros(seq_len*2, batch_size, self.hidden_size)).cuda()
 
 class Decoder(nn.Module):
     def __init__(self, hidden_size, output_size):
@@ -72,29 +71,32 @@ class Decoder(nn.Module):
 
             final_output[i] = decoder_output
 
-        return final_output
+        return final_output.transpose(0, 1)
 
-    def set_weights():
-        return Variable(torch.zeros(1, 1, self.hidden_size)).cuda()
+    def get_hidden(batch_size):
+        return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
+
+    def get_output(batch_size):
+        return Variable(torch.zeros(batch_size, self.output_size)).cuda()
 
 def pickle_return(filename):
-	import pickle
-	f = open(filename, 'r')
-	data = pickle.load(f)
-	f.close()
-	return data
+    import pickle
+    f = open(filename, 'r')
+    data = pickle.load(f)
+    f.close()
+    return data
 
 def pickle_dump(filename, data):
-	import pickle
-	f = open(filename, 'w')
-	pickle.dump(data, f)
-	f.close()
+    import pickle
+    f = open(filename, 'w')
+    pickle.dump(data, f)
+    f.close()
 
 def recache():
     batch = pickle_return('training_vectors.p')
     pickle_dump('training_vectors_cache.p', batch)
 
-def random_batch(num_of_batch=50, max_len=300, word_dim=10237):
+def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
     import numpy as np
     import random
     from keras.preprocessing.sequence import pad_sequences as ps
@@ -103,8 +105,11 @@ def random_batch(num_of_batch=50, max_len=300, word_dim=10237):
     batch = pickle_return('training_vectors_cache.p')
     final_input = []
     final_output = []
+    epoch_finished = False
     for i in range(num_of_batch):
-        if len(batch) == 0: break
+        if len(batch) == 0:
+            epoch_finished = True
+            break
         # use python list here instead of numpy array because numpy array doesn't have append
         instance = random.choice(batch)
         batch.remove(instance)
@@ -115,8 +120,64 @@ def random_batch(num_of_batch=50, max_len=300, word_dim=10237):
     pickle_dump('training_vectors_cache.p', batch)
 
     # pad for consistent length
-    final_input = torch.from_numpy(ps(final_input, maxlen=max_len))
+    final_input = torch.from_numpy(ps(final_input, maxlen=seq_len))
 
     # 3 ops: pad for consistent length -> turn into one hot for easy evaluation -> reshape since keras's to_categorical doesn't
-    final_output = torch.from_numpy(np.reshape(tc(ps(final_output, maxlen=max_len), num_classes=word_dim), (max_len,-1,word_dim)))
-    return final_input, final_output
+    final_output = torch.from_numpy(np.reshape(tc(ps(final_output, maxlen=seq_len), num_classes=word_dim), (-1,seq_len,word_dim)))
+    return final_input, final_output, epoch_finished
+
+def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer, criterion):
+    # for each training cycle, zero the gradients out otherwise gradients will accumulate
+    encoder.zero_grad()
+    decoder.zero_grad()
+
+    # pass data through these 2 layers
+    output, _ = encoder(input, encoder.get_hidden(input.size(0), input.size(1)))
+    output = decoder(output, decoder.get_hidden(output.size(1)), decoder.get_output(output.size(1)))
+
+    loss = criterion(output, target)
+    loss.backward()
+
+    decoder_optimizer.step()
+    encoder_optimizer.step()
+
+    return loss.data[0] # edit this
+
+# enter hyperparameters here
+encoder_hidden_size = 300
+decoder_hidden_size = 300
+output_size = 10237
+learning_rate = 0.01
+epochs = 5
+batch_size = 30
+seq_len = 300
+word_dim = 10237
+evaluate_rate = 10 # print accuracy per 'evaluate_rate' number of iterations
+
+# net initilizations
+encoder = Encoder(np.load(open('embeds.npy', 'rb')), encoder_hidden_size)
+encoder.cuda()
+decoder = Decoder(decoder_hidden_size, output_size)
+decoder.cuda()
+
+# initilize optimizers & loss functions here
+# don't initilize in the train function because the net can't keep track if these variables are deallocated
+encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
+decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
+criterion = nn.CrossEntropyLoss() # edit this loss
+
+def evaluate():
+    loss = 0.0
+    epoch_finished = True
+    num_of_iterations = 0
+    for epoch in range(epochs):
+        recache() # reset temporary batch file for memory efficiency
+        while not epoch_finished:
+            input, output, epoch_finished = random_batch()
+            loss += train(encoder, decoder, input, output, encoder_optimizer, decoder_optimizer, criterion)
+
+            num_of_iterations += 1
+
+            if num_of_iterations % evaluate_rate == 0:
+                print 'epoch: %d iteration: %5d loss: %.3f' %  (epoch + 1, num_of_iterations, loss)
+                loss = 0.0
