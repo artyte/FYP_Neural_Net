@@ -122,8 +122,8 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
     # pad for consistent length
     final_input = torch.from_numpy(ps(final_input, maxlen=seq_len))
 
-    # 3 ops: pad for consistent length -> turn into one hot for easy evaluation -> reshape since keras's to_categorical doesn't
-    final_output = torch.from_numpy(np.reshape(tc(ps(final_output, maxlen=seq_len), num_classes=word_dim), (-1,seq_len,word_dim)))
+    # pad for consistent length
+    final_output = torch.from_numpy(ps(final_output, maxlen=seq_len))
     return final_input, final_output, epoch_finished
 
 def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer, criterion):
@@ -134,14 +134,17 @@ def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer,
     # pass data through these 2 layers
     output, _ = encoder(input, encoder.get_hidden(input.size(0), input.size(1)))
     output = decoder(output, decoder.get_hidden(output.size(1)), decoder.get_output(output.size(1)))
+    output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
 
-    loss = criterion(output, target)
+    loss = 0
+    for i in range(target.size(0)): # target.size(0) is the batchn axis
+        loss += criterion(output[i], target[i])
     loss.backward()
 
     decoder_optimizer.step()
     encoder_optimizer.step()
 
-    return loss.data[0] # edit this
+    return loss
 
 # enter hyperparameters here
 encoder_hidden_size = 300
