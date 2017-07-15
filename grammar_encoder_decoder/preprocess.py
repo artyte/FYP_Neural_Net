@@ -112,7 +112,7 @@ def index_all(sentences, word_dict):
 
 	return sentences_tmp
 
-def get_unique(train_input, train_output, test_input, test_output, threshold=5):
+def get_unique(train_input, train_output, test_input, test_output, threshold=10):
 	a = train_input + train_output + test_input + test_output
 	dic = {}
 	for lis in a:
