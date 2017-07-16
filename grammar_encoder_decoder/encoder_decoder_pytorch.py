@@ -6,13 +6,13 @@ from torch import optim
 from torch.autograd import Variable
 
 # enter hyperparameters here
-encoder_hidden_size = 200
-decoder_hidden_size = 200
+encoder_hidden_size = 100
+decoder_hidden_size = 100
 output_size = 7163
 learning_rate = 0.01
 epochs = 5
 batch_size = 15
-seq_len = 300
+seq_len = 150
 word_dim = 7163
 evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
 
@@ -85,7 +85,7 @@ class Decoder(nn.Module):
 
             final_output[i] = decoder_output
 
-        return final_output.transpose(0, 1)
+        return final_output
 
     def get_hidden(self, batch_size):
         return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
@@ -136,7 +136,7 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
     final_input = Variable(torch.from_numpy(ps(final_input, maxlen=seq_len)).long())
 
     # pad for consistent length
-    final_output = torch.from_numpy(ps(final_output, maxlen=seq_len))
+    final_output = Variable(torch.from_numpy(ps(final_output, maxlen=seq_len)).long())
     return final_input, final_output, epoch_finished
 
 def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer, criterion):
@@ -157,7 +157,7 @@ def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer,
     decoder_optimizer.step()
     encoder_optimizer.step()
 
-    return loss
+    return loss.data[0]
 
 # net initilizations
 encoder = Encoder(torch.from_numpy(np.load(open('embeds.npy', 'rb'))), encoder_hidden_size)
@@ -180,7 +180,6 @@ def evaluate():
         while not epoch_finished:
             input, output, epoch_finished = random_batch()
             input = input.cuda()
-            output = output.cuda()
             loss += train(encoder, decoder, input, output, encoder_optimizer, decoder_optimizer, criterion)
 
             num_of_iterations += 1
