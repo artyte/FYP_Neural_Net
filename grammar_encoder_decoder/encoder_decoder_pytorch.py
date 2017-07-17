@@ -10,11 +10,11 @@ encoder_hidden_size = 100
 decoder_hidden_size = 100
 output_size = 7163
 learning_rate = 0.01
-epochs = 5
-batch_size = 15
-seq_len = 150
-word_dim = 7163
-evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
+epochs = 2
+batch_size = 50
+seq_len = 40
+word_dim = output_size
+evaluate_rate = 5 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
     def __init__(self, embeddings, hidden_size):
@@ -56,7 +56,7 @@ class Decoder(nn.Module):
         seq_len = encoder_output.size(0)
 
         # create placeholder for net's output
-        final_output = Variable(torch.zeros(seq_len, batch_size, self.output_size))
+        final_output = Variable(torch.zeros(seq_len, batch_size, self.output_size)).cuda()
 
         for i in range(seq_len):
             # initialize attention weights' parameters
@@ -148,10 +148,12 @@ def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer,
     output, _ = encoder(input, encoder.get_hidden(input.size(0), input.size(1)))
     output = decoder(output, decoder.get_hidden(output.size(1)), decoder.get_output(output.size(1)))
     output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
+    target = target.cuda()
 
-    loss = 0
-    for i in range(target.size(0)): # target.size(0) is the batchn axis
+    loss = 0.0
+    for i in range(target.size(0)): # target.size(0) is the batch axis
         loss += criterion(output[i], target[i])
+
     loss.backward()
 
     decoder_optimizer.step()
@@ -169,14 +171,16 @@ decoder.cuda()
 # don't initilize in the train function because the net can't keep track if these variables are deallocated
 encoder_optimizer = optim.Adam(filter(lambda p: p.requires_grad, encoder.parameters()), lr=learning_rate)
 decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss().cuda()
 
 def evaluate():
+    import time
     loss = 0.0
-    epoch_finished = False
-    num_of_iterations = 0
     for epoch in range(epochs):
         recache() # reset temporary batch file for memory efficiency
+        epoch_finished = False
+        start = time.time()
+        num_of_iterations = 0
         while not epoch_finished:
             input, output, epoch_finished = random_batch()
             input = input.cuda()
@@ -185,7 +189,9 @@ def evaluate():
             num_of_iterations += 1
 
             if num_of_iterations % evaluate_rate == 0:
-                print 'epoch: %d iteration: %5d loss: %.3f' %  (epoch + 1, num_of_iterations, loss)
+                diff = (time.time() - start) / 60.0
+                print 'epoch: %d iteration: %d loss: %f duration: %f' %  (epoch + 1, num_of_iterations, loss, diff)
                 loss = 0.0
+                start = time.time()
 
 evaluate()
