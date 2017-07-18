@@ -93,6 +93,20 @@ class Decoder(nn.Module):
     def get_output(self, batch_size):
         return Variable(torch.zeros(batch_size, self.output_size)).cuda()
 
+class Seq2Seq(nn.Module):
+    def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
+        super(Seq2Seq, self).__init__()
+
+        self.encoder = Encoder(embeddings, encoder_hidden_size)
+        self.decoder = Decoder(decoder_hidden_size, output_size)
+
+    def forward(self, input):
+        # pass data through these 2 layers
+        output, _ = self.encoder(input, self.encoder.get_hidden(input.size(0), input.size(1)))
+        output = self.decoder(output, self.decoder.get_hidden(output.size(1)), self.decoder.get_output(output.size(1)))
+
+        return output
+
 def pickle_return(filename):
     import pickle
     f = open(filename, 'r')
@@ -139,14 +153,12 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
     final_output = Variable(torch.from_numpy(ps(final_output, maxlen=seq_len)).long())
     return final_input, final_output, epoch_finished
 
-def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer, criterion):
+def train(seq2seq, input, target, seq2seq_optimizer, criterion):
     # for each training cycle, zero the gradients out otherwise gradients will accumulate
-    encoder.zero_grad()
-    decoder.zero_grad()
+    seq2seq.zero_grad()
 
     # pass data through these 2 layers
-    output, _ = encoder(input, encoder.get_hidden(input.size(0), input.size(1)))
-    output = decoder(output, decoder.get_hidden(output.size(1)), decoder.get_output(output.size(1)))
+    output = seq2seq(input)
     output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
     target = target.cuda()
 
@@ -156,24 +168,11 @@ def train(encoder, decoder, input, target, encoder_optimizer, decoder_optimizer,
 
     loss.backward()
 
-    decoder_optimizer.step()
-    encoder_optimizer.step()
+    seq2seq_optimizer.step()
 
     return loss.data[0]
 
-# net initilizations
-encoder = Encoder(torch.from_numpy(np.load(open('embeds.npy', 'rb'))), encoder_hidden_size)
-encoder.cuda()
-decoder = Decoder(decoder_hidden_size, output_size)
-decoder.cuda()
-
-# initilize optimizers & loss functions here
-# don't initilize in the train function because the net can't keep track if these variables are deallocated
-encoder_optimizer = optim.Adam(filter(lambda p: p.requires_grad, encoder.parameters()), lr=learning_rate)
-decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
-criterion = nn.CrossEntropyLoss().cuda()
-
-def evaluate():
+def evaluate(model, model_optimizer, criterion):
     import time
     loss = 0.0
     for epoch in range(epochs):
@@ -184,7 +183,7 @@ def evaluate():
         while not epoch_finished:
             input, output, epoch_finished = random_batch()
             input = input.cuda()
-            loss += train(encoder, decoder, input, output, encoder_optimizer, decoder_optimizer, criterion)
+            loss += train(model, input, output, model_optimizer, criterion)
 
             num_of_iterations += 1
 
@@ -194,4 +193,54 @@ def evaluate():
                 loss = 0.0
                 start = time.time()
 
-evaluate()
+    return model
+
+def make_model():
+    # net initilizations
+    embeddings = torch.from_numpy(np.load(open('embeds.npy', 'rb')))
+    seq2seq = Seq2Seq(embeddings, encoder_hidden_size, decoder_hidden_size, output_size)
+    seq2seq.cuda()
+
+    # initilize optimizers & loss functions here
+    # don't initilize in the train function because the net can't keep track if these variables are deallocated
+    seq2seq_optimizer = optim.Adam(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate)
+    criterion = nn.CrossEntropyLoss().cuda()
+
+    seq2seq = evaluate(seq2seq, seq2seq_optimizer, criterion)
+    torch.save(seq2seq, "model.model")
+
+def predict():
+    input = raw_input("Enter a sentence: ")
+
+    from nltk.tokenize import word_tokenize as wt
+    sentence = wt(data)
+    sentence_tmp = []
+
+    index_map = pickle_return('index.p')
+    for word in sentence:
+        word = word.lower()
+        if word not in index_map: sentence_tmp.append(0)
+        else: sentence_tmp.append(int(index_map[word][1]))
+
+    # make sentence_tmp list of list to fit keras api
+    from keras.preprocessing.sequence import pad_sequences as ps
+    input = Variable(torch.from_numpy(ps([sentence_tmp], maxlen=seq_len)))
+    input = input.cuda()
+
+    # get output from model
+    model = torch.load("model.model")
+    output = model(input)
+    output = output.transpose(0,1) # batch must be on the first axis
+    values, indices = output.max(2)
+
+    # convert into list for reverse mapping
+    indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
+    reverse_index = pickle_return('reverse_index.p')
+    predict = []
+    for num in indices:
+        if num not in reverse_index_map: predict += '##NULL##'
+        else: predict += reverse_index_map[num]
+    print " ".join(predict)
+
+make_model()
+#predict()
