@@ -8,13 +8,15 @@ from torch.autograd import Variable
 # enter hyperparameters here
 encoder_hidden_size = 100
 decoder_hidden_size = 100
-output_size = 7163
-learning_rate = 0.01
+output_size = 3306
+learning_rate = 0.0001
+momentum = 0.9
 epochs = 2
-batch_size = 50
+batch_size = 100
 seq_len = 40
 word_dim = output_size
-evaluate_rate = 5 # print error per 'evaluate_rate' number of iterations
+loss_function = nn.NLLLoss().cuda()
+evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
     def __init__(self, embeddings, hidden_size):
@@ -23,19 +25,16 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
         self.embedding.weight = nn.Parameter(embeddings.double())
-        self.embedding.weight.requires_grad = False
+        #self.embedding.weight.requires_grad = False
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
     def forward(self, input, hidden):
-        # from torch.nn.utils.rnn import pack_padded_sequence as packpad, pad_packed_sequence as padpack
         embed = self.embedding(input)
         embed = embed.transpose(0,1)
         embed = embed.float()
-        # packed = packpad(embedded, input_length)
-        output, hidden = self.gru(embed, hidden)
-        # output, _ = padpack(output)
+        output, _ = self.gru(embed, hidden)
 
-        return output, hidden
+        return F.tanh(output)
 
     def get_hidden(self, batch_size, seq_len):
         return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
@@ -47,9 +46,10 @@ class Decoder(nn.Module):
         self.output_size = output_size
         self.hidden_size = hidden_size
         self.attn = nn.Linear(self.hidden_size * 3, self.hidden_size)
-        self.v = nn.Parameter(torch.FloatTensor(1, self.hidden_size))
-        self.gru = nn.GRUCell(self.hidden_size * 2 + self.output_size, self.hidden_size)
-        self.out = nn.Linear(self.hidden_size * 3 + self.output_size, self.output_size)
+        self.v = nn.Linear(self.hidden_size, 1)
+        self.shrink = nn.Linear(self.output_size, self.hidden_size)
+        self.gru = nn.GRUCell(self.hidden_size * 3, self.hidden_size)
+        self.out = nn.Linear(self.hidden_size * 4, self.output_size)
 
     def forward(self, encoder_output, hidden, decoder_output):
         batch_size = encoder_output.size(1)
@@ -67,7 +67,8 @@ class Decoder(nn.Module):
             for b in range(batch_size):
                 for l in range(seq_len):
                     # v tensor used to reduce attention output to 1 dim
-                    attn_energy[b, l] = self.v.dot(self.attn(torch.cat((hidden[b,:].unsqueeze(0), encoder_output[l,b].unsqueeze(0)), 1)))
+                    vector = self.attn(torch.cat((hidden[b,:].unsqueeze(0), encoder_output[l,b].unsqueeze(0)), 1))
+                    attn_energy[b, l] = self.v(F.tanh(vector))
             attn_energy = F.softmax(attn_energy)
 
             # encoder_output axis: S x B x D -> B x S x D (to match attn_energy's B x 1 x S)
@@ -76,16 +77,18 @@ class Decoder(nn.Module):
             # context axis: B x 1 x S -> B x S (suitable for GRUCell's api definition)
             context = context.squeeze(1)
 
+            decoder_output = self.shrink(decoder_output)
+
             # concat axis: B x 2*S
-            hidden = self.gru(torch.cat((decoder_output, context), 1), hidden)
+            hidden = F.tanh(self.gru(torch.cat((decoder_output, context), 1), hidden))
 
             # concat axis : B x 3*S
             decoder_output = self.out(torch.cat((hidden, decoder_output, context), 1))
-            decoder_output = F.softmax(decoder_output)
+            decoder_output = decoder_output
 
             final_output[i] = decoder_output
 
-        return final_output
+        return F.softmax(final_output)
 
     def get_hidden(self, batch_size):
         return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
@@ -102,7 +105,7 @@ class Seq2Seq(nn.Module):
 
     def forward(self, input):
         # pass data through these 2 layers
-        output, _ = self.encoder(input, self.encoder.get_hidden(input.size(0), input.size(1)))
+        output = self.encoder(input, self.encoder.get_hidden(input.size(0), input.size(1)))
         output = self.decoder(output, self.decoder.get_hidden(output.size(1)), self.decoder.get_output(output.size(1)))
 
         return output
@@ -167,7 +170,6 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
         loss += criterion(output[i], target[i])
 
     loss.backward()
-
     seq2seq_optimizer.step()
 
     return loss.data[0]
@@ -176,9 +178,10 @@ def evaluate(model, model_optimizer, criterion):
     import time
     loss = 0.0
     for epoch in range(epochs):
+        start = time.time()
+
         recache() # reset temporary batch file for memory efficiency
         epoch_finished = False
-        start = time.time()
         num_of_iterations = 0
         while not epoch_finished:
             input, output, epoch_finished = random_batch()
@@ -189,7 +192,7 @@ def evaluate(model, model_optimizer, criterion):
 
             if num_of_iterations % evaluate_rate == 0:
                 diff = (time.time() - start) / 60.0
-                print 'epoch: %d iteration: %d loss: %f duration: %f' %  (epoch + 1, num_of_iterations, loss, diff)
+                print 'epoch: %d\titeration: %d\tloss: %f\tduration: %f' %  (epoch + 1, num_of_iterations, loss, diff)
                 loss = 0.0
                 start = time.time()
 
@@ -203,8 +206,8 @@ def make_model():
 
     # initilize optimizers & loss functions here
     # don't initilize in the train function because the net can't keep track if these variables are deallocated
-    seq2seq_optimizer = optim.Adam(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate)
-    criterion = nn.CrossEntropyLoss().cuda()
+    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate, momentum=momentum)
+    criterion = loss_function
 
     seq2seq = evaluate(seq2seq, seq2seq_optimizer, criterion)
     torch.save(seq2seq, "model.model")
@@ -213,7 +216,7 @@ def predict():
     input = raw_input("Enter a sentence: ")
 
     from nltk.tokenize import word_tokenize as wt
-    sentence = wt(data)
+    sentence = wt(input)
     sentence_tmp = []
 
     index_map = pickle_return('index.p')
@@ -224,7 +227,7 @@ def predict():
 
     # make sentence_tmp list of list to fit keras api
     from keras.preprocessing.sequence import pad_sequences as ps
-    input = Variable(torch.from_numpy(ps([sentence_tmp], maxlen=seq_len)))
+    input = Variable(torch.from_numpy(ps([sentence_tmp], maxlen=seq_len)).long())
     input = input.cuda()
 
     # get output from model
@@ -234,12 +237,12 @@ def predict():
     values, indices = output.max(2)
 
     # convert into list for reverse mapping
+    indices = indices.cpu()
     indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
     reverse_index = pickle_return('reverse_index.p')
     predict = []
     for num in indices:
-        if num not in reverse_index_map: predict += '##NULL##'
-        else: predict += reverse_index_map[num]
+        predict.append(reverse_index[num])
     print " ".join(predict)
 
 make_model()
