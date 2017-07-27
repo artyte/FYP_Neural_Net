@@ -9,13 +9,13 @@ from torch.autograd import Variable
 encoder_hidden_size = 100
 decoder_hidden_size = 100
 output_size = 3306
-learning_rate = 0.0001
-momentum = 0.9
-epochs = 2
+learning_rate = 0.004
+momentum = 0.95
+epochs = 20
 batch_size = 100
-seq_len = 40
+seq_len = 25
 word_dim = output_size
-loss_function = nn.NLLLoss().cuda()
+loss_function = nn.CrossEntropyLoss().cuda()
 evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
@@ -25,7 +25,7 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
         self.embedding.weight = nn.Parameter(embeddings.double())
-        #self.embedding.weight.requires_grad = False
+        self.embedding.weight.requires_grad = False
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
     def forward(self, input, hidden):
@@ -130,7 +130,6 @@ def recache():
 def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
     import random
     from keras.preprocessing.sequence import pad_sequences as ps
-    # from keras.utils import to_categorical as tc
 
     batch = pickle_return('training_vectors_cache.p')
     final_input = []
@@ -146,14 +145,16 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
         final_input.append(instance[0])
         final_output.append(instance[1])
 
+
+    # reverse to pad from end -> pad -> reverse -> convert to pytorch tensor
+    x = ps([i[::-1] for i in final_input], maxlen=seq_len).tolist()
+    final_input = Variable(torch.from_numpy(np.array([i[::-1] for i in x])).long())
+    y = ps([i[::-1] for i in final_output], maxlen=seq_len).tolist()
+    final_output = Variable(torch.from_numpy(np.array([i[::-1] for i in y])).long())
+
     # do not repeat same possibly same random on next batch call
     pickle_dump('training_vectors_cache.p', batch)
 
-    # pad for consistent length
-    final_input = Variable(torch.from_numpy(ps(final_input, maxlen=seq_len)).long())
-
-    # pad for consistent length
-    final_output = Variable(torch.from_numpy(ps(final_output, maxlen=seq_len)).long())
     return final_input, final_output, epoch_finished
 
 def train(seq2seq, input, target, seq2seq_optimizer, criterion):
@@ -242,8 +243,8 @@ def predict():
     reverse_index = pickle_return('reverse_index.p')
     predict = []
     for num in indices:
-        predict.append(reverse_index[num])
-    print " ".join(predict)
+        if num != 0: predict.append(reverse_index[num])
+    print "Corrected sentence is %s" % (" ".join(predict))
 
-make_model()
-#predict()
+#make_model()
+predict()
