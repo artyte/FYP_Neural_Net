@@ -5,15 +5,15 @@ import numpy as np
 from torch import optim
 from torch.autograd import Variable
 
-# enter hyperparameters here
+# enter hyperparameters heret
 encoder_hidden_size = 100
 decoder_hidden_size = 100
-output_size = 3306
+output_size = 26208
 learning_rate = 0.004
 momentum = 0.95
-epochs = 20
-batch_size = 100
-seq_len = 25
+epochs = 2
+batch_size = 50
+seq_len = 30
 word_dim = output_size
 loss_function = nn.CrossEntropyLoss().cuda()
 evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
@@ -125,13 +125,14 @@ def pickle_dump(filename, data):
 
 def recache():
     batch = pickle_return('training_vectors.p')
-    pickle_dump('training_vectors_cache.p', batch)
+    # pickle_dump('training_vectors_cache.p', batch)
+    return batch
 
-def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
+def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batch=None):
     import random
     from keras.preprocessing.sequence import pad_sequences as ps
 
-    batch = pickle_return('training_vectors_cache.p')
+    # batch = pickle_return('training_vectors_cache.p')
     final_input = []
     final_output = []
     epoch_finished = False
@@ -153,9 +154,9 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim):
     final_output = Variable(torch.from_numpy(np.array([i[::-1] for i in y])).long())
 
     # do not repeat same possibly same random on next batch call
-    pickle_dump('training_vectors_cache.p', batch)
+    # pickle_dump('training_vectors_cache.p', batch)
 
-    return final_input, final_output, epoch_finished
+    return final_input, final_output, epoch_finished, batch
 
 def train(seq2seq, input, target, seq2seq_optimizer, criterion):
     # for each training cycle, zero the gradients out otherwise gradients will accumulate
@@ -181,11 +182,11 @@ def evaluate(model, model_optimizer, criterion):
     for epoch in range(epochs):
         start = time.time()
 
-        recache() # reset temporary batch file for memory efficiency
+        data = recache() # reset temporary batch data for memory efficiency
         epoch_finished = False
         num_of_iterations = 0
         while not epoch_finished:
-            input, output, epoch_finished = random_batch()
+            input, output, epoch_finished, data = random_batch(batch=data)
             input = input.cuda()
             loss += train(model, input, output, model_optimizer, criterion)
 
@@ -246,5 +247,6 @@ def predict():
         if num != 0: predict.append(reverse_index[num])
     print "Corrected sentence is %s" % (" ".join(predict))
 
-#make_model()
-predict()
+choice = raw_input("Enter an option:\n%s\n%s\n" % ("1. Train model", "2. Correct sentence"))
+if choice == "1": make_model()
+elif choice == "2": predict()

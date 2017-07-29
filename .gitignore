@@ -6,3 +6,4 @@
 *.txt
 *.model
 model
+*.train
