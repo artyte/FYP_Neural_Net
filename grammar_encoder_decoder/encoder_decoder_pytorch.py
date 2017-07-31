@@ -19,7 +19,7 @@ loss_function = nn.NLLLoss().cuda()
 evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
-    def __init__(self, embeddings, hidden_size):
+    def __init__(self, embeddings, hidden_size, batch_size):
         super(Encoder, self).__init__()
 
         self.hidden_size = hidden_size
@@ -28,7 +28,10 @@ class Encoder(nn.Module):
         self.embedding.weight.requires_grad = True
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
-    def forward(self, input, hidden):
+        self.hidden = Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
+
+    def forward(self, input):
+        hidden = self.hidden
         embed = self.embedding(input)
         embed = embed.transpose(0,1)
         embed = embed.float()
@@ -36,11 +39,8 @@ class Encoder(nn.Module):
 
         return F.tanh(output)
 
-    def get_hidden(self, batch_size, seq_len):
-        return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
-
 class Decoder(nn.Module):
-    def __init__(self, hidden_size, output_size):
+    def __init__(self, hidden_size, output_size, batch_size):
         super(Decoder, self).__init__()
 
         self.output_size = output_size
@@ -51,7 +51,13 @@ class Decoder(nn.Module):
         self.gru = nn.GRUCell(self.hidden_size * 3, self.hidden_size)
         self.out = nn.Linear(self.hidden_size * 4, self.output_size)
 
-    def forward(self, encoder_output, hidden, decoder_output):
+        self.hidden = Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
+        self.decoder_output = Variable(torch.zeros(batch_size, self.output_size)).cuda()
+
+    def forward(self, encoder_output):
+        hidden = self.hidden
+        decoder_output = self.decoder_output
+
         batch_size = encoder_output.size(1)
         seq_len = encoder_output.size(0)
 
@@ -62,13 +68,9 @@ class Decoder(nn.Module):
             # initialize attention weights' parameters
             attn_energy = Variable(torch.zeros(batch_size, seq_len)).cuda()
 
-            # hidden and encoder_output axis: S -> 1 x S (suitable for Linear's api definition)
-            # concat axis : 1 x 2*S
-            for l in range(seq_len):
-                # v tensor used to reduce attention output to 1 dim
-                vector = self.attn(torch.cat((hidden, encoder_output[l]), 1))
-                attn_energy[:, l] = self.v(F.tanh(vector))
-            attn_energy = F.softmax(attn_energy)
+            # mimic keras's timedistributeddense
+            vector = self.attn(torch.cat((hidden.repeat(seq_len,1), encoder_output.contiguous().view(-1, encoder_output.size(-1))), 1))
+            attn_energy = F.softmax(self.v(F.tanh(vector)).contiguous().view(-1,batch_size).transpose(0,1))
 
             # encoder_output axis: S x B x D -> B x S x D (to match attn_energy's B x 1 x S)
             context = torch.bmm(attn_energy.unsqueeze(1), encoder_output.transpose(0,1)).cuda()
@@ -89,23 +91,17 @@ class Decoder(nn.Module):
 
         return F.log_softmax(final_output)
 
-    def get_hidden(self, batch_size):
-        return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
-
-    def get_output(self, batch_size):
-        return Variable(torch.zeros(batch_size, self.output_size)).cuda()
-
 class Seq2Seq(nn.Module):
-    def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
+    def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size, batch_size):
         super(Seq2Seq, self).__init__()
 
-        self.encoder = Encoder(embeddings, encoder_hidden_size)
-        self.decoder = Decoder(decoder_hidden_size, output_size)
+        self.encoder = Encoder(embeddings, encoder_hidden_size, batch_size)
+        self.decoder = Decoder(decoder_hidden_size, output_size, batch_size)
 
     def forward(self, input):
         # pass data through these 2 layers
-        output = self.encoder(input, self.encoder.get_hidden(input.size(0), input.size(1)))
-        output = self.decoder(output, self.decoder.get_hidden(output.size(1)), self.decoder.get_output(output.size(1)))
+        output = self.encoder(input)
+        output = self.decoder(output)
 
         return output
 
@@ -198,7 +194,7 @@ def evaluate(model, model_optimizer, criterion):
 def make_model():
     # net initilizations
     embeddings = torch.from_numpy(np.load(open('embeds.npy', 'rb')))
-    seq2seq = Seq2Seq(embeddings, encoder_hidden_size, decoder_hidden_size, output_size)
+    seq2seq = Seq2Seq(embeddings, encoder_hidden_size, decoder_hidden_size, output_size, batch_size)
     seq2seq.cuda()
 
     # initilize optimizers & loss functions here
