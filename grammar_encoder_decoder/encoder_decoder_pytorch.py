@@ -19,7 +19,7 @@ loss_function = nn.NLLLoss().cuda()
 evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
-    def __init__(self, embeddings, hidden_size, batch_size):
+    def __init__(self, embeddings, hidden_size):
         super(Encoder, self).__init__()
 
         self.hidden_size = hidden_size
@@ -28,10 +28,10 @@ class Encoder(nn.Module):
         self.embedding.weight.requires_grad = True
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
-        self.hidden = Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
+    def get_hidden(self, batch_size):
+        return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
 
-    def forward(self, input):
-        hidden = self.hidden
+    def forward(self, input, hidden):
         embed = self.embedding(input)
         embed = embed.transpose(0,1)
         embed = embed.float()
@@ -40,7 +40,7 @@ class Encoder(nn.Module):
         return F.tanh(output)
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_size, output_size, batch_size):
+    def __init__(self, hidden_size, output_size):
         super(Decoder, self).__init__()
 
         self.output_size = output_size
@@ -51,13 +51,13 @@ class Decoder(nn.Module):
         self.gru = nn.GRUCell(self.hidden_size * 3, self.hidden_size)
         self.out = nn.Linear(self.hidden_size * 4, self.output_size)
 
-        self.hidden = Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
-        self.decoder_output = Variable(torch.zeros(batch_size, self.output_size)).cuda()
+    def get_hidden(self, batch_size):
+        return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
 
-    def forward(self, encoder_output):
-        hidden = self.hidden
-        decoder_output = self.decoder_output
+    def get_output(self, batch_size):
+        return Variable(torch.zeros(batch_size, self.output_size)).cuda()
 
+    def forward(self, encoder_output, hidden, decoder_output):
         batch_size = encoder_output.size(1)
         seq_len = encoder_output.size(0)
 
@@ -92,16 +92,16 @@ class Decoder(nn.Module):
         return F.log_softmax(final_output)
 
 class Seq2Seq(nn.Module):
-    def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size, batch_size):
+    def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
         super(Seq2Seq, self).__init__()
 
-        self.encoder = Encoder(embeddings, encoder_hidden_size, batch_size)
-        self.decoder = Decoder(decoder_hidden_size, output_size, batch_size)
+        self.encoder = Encoder(embeddings, encoder_hidden_size)
+        self.decoder = Decoder(decoder_hidden_size, output_size)
 
     def forward(self, input):
         # pass data through these 2 layers
-        output = self.encoder(input)
-        output = self.decoder(output)
+        output = self.encoder(input, self.encoder.get_hidden(input.size(0)))
+        output = self.decoder(output, self.decoder.get_hidden(output.size(1)), self.decoder.get_output(output.size(1)))
 
         return output
 
@@ -194,7 +194,7 @@ def evaluate(model, model_optimizer, criterion):
 def make_model():
     # net initilizations
     embeddings = torch.from_numpy(np.load(open('embeds.npy', 'rb')))
-    seq2seq = Seq2Seq(embeddings, encoder_hidden_size, decoder_hidden_size, output_size, batch_size)
+    seq2seq = Seq2Seq(embeddings, encoder_hidden_size, decoder_hidden_size, output_size)
     seq2seq.cuda()
 
     # initilize optimizers & loss functions here
