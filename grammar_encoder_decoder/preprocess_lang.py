@@ -121,7 +121,6 @@ def trim(vocab, reverse_vocab):
 	return new_vocab, new_reverse_vocab
 
 def produce_data_files(train_input, train_output, test_input, test_output):
-
 	vocab, reverse_vocab = get_unique(train_input, train_output, test_input, test_output)
 	reverse_vocab[0] = '#null#'
 
@@ -176,5 +175,5 @@ def prepare_input():
 	test_input, test_output = tokenize_all(test_data)
 	produce_data_files(train_input, train_output, test_input, test_output)
 
-#make_csv()
+make_csv()
 prepare_input()

@@ -8,15 +8,15 @@ from torch.autograd import Variable
 # enter hyperparameters heret
 encoder_hidden_size = 100
 decoder_hidden_size = 100
-output_size = 26208
+output_size = 30796
 learning_rate = 0.004
 momentum = 0.95
 epochs = 2
-batch_size = 50
+batch_size = 60
 seq_len = 30
 word_dim = output_size
-loss_function = nn.CrossEntropyLoss().cuda()
-evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
+loss_function = nn.NLLLoss().cuda()
+evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
     def __init__(self, embeddings, hidden_size):
@@ -25,7 +25,7 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
         self.embedding.weight = nn.Parameter(embeddings.double())
-        self.embedding.weight.requires_grad = False
+        self.embedding.weight.requires_grad = True
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
     def forward(self, input, hidden):
@@ -64,11 +64,10 @@ class Decoder(nn.Module):
 
             # hidden and encoder_output axis: S -> 1 x S (suitable for Linear's api definition)
             # concat axis : 1 x 2*S
-            for b in range(batch_size):
-                for l in range(seq_len):
-                    # v tensor used to reduce attention output to 1 dim
-                    vector = self.attn(torch.cat((hidden[b,:].unsqueeze(0), encoder_output[l,b].unsqueeze(0)), 1))
-                    attn_energy[b, l] = self.v(F.tanh(vector))
+            for l in range(seq_len):
+                # v tensor used to reduce attention output to 1 dim
+                vector = self.attn(torch.cat((hidden, encoder_output[l]), 1))
+                attn_energy[:, l] = self.v(F.tanh(vector))
             attn_energy = F.softmax(attn_energy)
 
             # encoder_output axis: S x B x D -> B x S x D (to match attn_energy's B x 1 x S)
@@ -88,7 +87,7 @@ class Decoder(nn.Module):
 
             final_output[i] = decoder_output
 
-        return F.softmax(final_output)
+        return F.log_softmax(final_output)
 
     def get_hidden(self, batch_size):
         return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
@@ -122,11 +121,6 @@ def pickle_dump(filename, data):
     f = open(filename, 'w')
     pickle.dump(data, f)
     f.close()
-
-def recache():
-    batch = pickle_return('training_vectors.p')
-    # pickle_dump('training_vectors_cache.p', batch)
-    return batch
 
 def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batch=None):
     import random
@@ -172,6 +166,7 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
         loss += criterion(output[i], target[i])
 
     loss.backward()
+    torch.nn.utils.clip_grad_norm(seq2seq.parameters(), 5)
     seq2seq_optimizer.step()
 
     return loss.data[0]
@@ -182,7 +177,7 @@ def evaluate(model, model_optimizer, criterion):
     for epoch in range(epochs):
         start = time.time()
 
-        data = recache() # reset temporary batch data for memory efficiency
+        data = pickle_return('training_vectors.p') # reset temporary batch data for memory efficiency
         epoch_finished = False
         num_of_iterations = 0
         while not epoch_finished:
