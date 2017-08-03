@@ -65,9 +65,6 @@ class Decoder(nn.Module):
         final_output = Variable(torch.zeros(seq_len, batch_size, self.output_size)).cuda()
 
         for i in range(seq_len):
-            # initialize attention weights' parameters
-            attn_energy = Variable(torch.zeros(batch_size, seq_len)).cuda()
-
             # mimic keras's timedistributeddense
             vector = self.attn(torch.cat((hidden.repeat(seq_len,1), encoder_output.contiguous().view(-1, encoder_output.size(-1))), 1))
             attn_energy = F.softmax(self.v(F.tanh(vector)).contiguous().view(-1,batch_size).transpose(0,1))
