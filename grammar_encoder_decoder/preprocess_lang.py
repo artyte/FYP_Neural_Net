@@ -3,6 +3,38 @@ import codecs
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+def rmv_particle(sentence, choice, tokens, corrective_set):
+    import random
+    choice = random.choice(choice)
+    random.shuffle(tokens[choice]) # ensure that a batch of tokens aren't always read in the same order
+    token = tokens[choice]
+
+    from nltk.tokenize import word_tokenize as wt
+    sentence = wt(sentence)
+    for word in sentence:
+        tmp = word.lower()
+        if tmp in token:
+            if tmp not in corrective_set: corrective_set.append(tmp)
+            sentence.remove(word)
+            break
+
+    return " ".join(sentence)
+
+def get_tokens():
+    choice = []
+    tokens = []
+    with open('tokens.txt') as f:
+        i = 0
+        for line in f:
+            import re
+            tmp = line.split(' ')
+            tmp[-1] = re.sub('\n', '', tmp[-1]) # because last token always contain return carraige
+            tokens.append(tmp)
+            choice.append(i)
+            i += 1
+
+    return choice, tokens
+
 def make_csv():
     original = []
     edited = []
@@ -10,16 +42,20 @@ def make_csv():
         for line in f:
             if len(line) == 1: continue
             line = line.split('\t')
-            original.append(line[4])
-            if len(line) == 6: edited.append(line[5])
-            else: edited.append(line[4])
+            if int(line[0]) == 0: edited.append(line[4])
+            else: edited.append(line[5])
 
     import re
-    for i in range(len(edited)):
-        original[i] = re.sub(' +', ' ', original[i])
-        original[i] = re.sub('\n', '', original[i])
-        edited[i] = re.sub(' +', ' ', edited[i])
+    from numpy.random import uniform as rand
+    corrective_set = [] # removed tokens used in perturbation of sentences
+    choice, tokens = get_tokens()
+    for i, sentence in enumerate(edited):
+        edited[i] = re.sub(' +', ' ', sentence)
         edited[i] = re.sub('\n', '', edited[i])
+        if rand(0,1) <= 0.75: original.append(rmv_particle(edited[i], choice, tokens, corrective_set))
+        else: original.append(edited[i])
+
+    pickle_dump('corrective_set.p', corrective_set)
 
     import csv
     senlis = zip(original,edited)
@@ -149,6 +185,14 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	pickle_dump('testing_vectors.p', zip(x,y))
 	pickle_dump('index.p', vocab)
 	pickle_dump('reverse_index.p', reverse_vocab)
+	pickle_dump('corrective_set.p', index_all([pickle_return('corrective_set.p')], vocab)[0])
+
+def pickle_return(filename):
+	import pickle
+	f = open(filename, 'r')
+	data = pickle.load(f)
+	f.close()
+	return data
 
 def pickle_dump(filename, data):
 	import pickle
@@ -175,5 +219,5 @@ def prepare_input():
 	test_input, test_output = tokenize_all(test_data)
 	produce_data_files(train_input, train_output, test_input, test_output)
 
-make_csv()
-prepare_input()
+#make_csv()
+#prepare_input()

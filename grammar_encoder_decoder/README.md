@@ -12,3 +12,4 @@
 - [Neural Network Translation Models for Grammatical Error Correction](https://arxiv.org/pdf/1606.00189.pdf)
 - [Lang-8 Learner Corpora](http://cl.naist.jp/nldata/lang-8/)
 - [Nucle 3.2](http://www.comp.nus.edu.sg/~nlp/conll14st.html)
+- [Atpaino Deep Text Corrector](https://github.com/atpaino/deep-text-corrector)

@@ -8,11 +8,11 @@ from torch.autograd import Variable
 # enter hyperparameters heret
 encoder_hidden_size = 100
 decoder_hidden_size = 100
-output_size = 30796
+output_size = 31086
 learning_rate = 0.004
 momentum = 0.95
 epochs = 2
-batch_size = 60
+batch_size = 55
 seq_len = 30
 word_dim = output_size
 loss_function = nn.NLLLoss().cuda()
@@ -224,6 +224,7 @@ def predict():
     model = torch.load("model.model")
     output = model(input)
     output = output.transpose(0,1) # batch must be on the first axis
+    '''put mask here'''
     values, indices = output.max(2)
 
     # convert into list for reverse mapping
@@ -235,6 +236,7 @@ def predict():
         if num != 0: predict.append(reverse_index[num])
     print "Corrected sentence is %s" % (" ".join(predict))
 
-choice = raw_input("Enter an option:\n%s\n%s\n" % ("1. Train model", "2. Correct sentence"))
+
+choice = raw_input("Enter an option (%s), (%s): " % ("1. Train model", "2. Correct sentence"))
 if choice == "1": make_model()
 elif choice == "2": predict()
