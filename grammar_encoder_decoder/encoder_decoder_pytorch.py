@@ -15,7 +15,7 @@ epochs = 2
 batch_size = 55
 seq_len = 30
 word_dim = output_size
-loss_function = nn.NLLLoss().cuda()
+loss_function = nn.CrossEntropyLoss().cuda()
 evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
@@ -86,7 +86,7 @@ class Decoder(nn.Module):
 
             final_output[i] = decoder_output
 
-        return F.log_softmax(final_output)
+        return F.softmax(final_output)
 
 class Seq2Seq(nn.Module):
     def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
@@ -210,9 +210,13 @@ def predict():
     sentence_tmp = []
 
     index_map = pickle_return('index.p')
+    OoV = [] # out of vocabulary
     for word in sentence:
+        tmp = word # in case of upper case
         word = word.lower()
-        if word not in index_map: sentence_tmp.append(0)
+        if word not in index_map:
+            sentence_tmp.append(0)
+            OoV.append(tmp)
         else: sentence_tmp.append(int(index_map[word][1]))
 
     # make sentence_tmp list of list to fit keras api
@@ -220,11 +224,19 @@ def predict():
     input = Variable(torch.from_numpy(ps([sentence_tmp], maxlen=seq_len)).long())
     input = input.cuda()
 
+    corrective_set = pickle_return('corrective_set.p')[0]
+    for i in sentence_tmp:
+        if i not in corrective_set: corrective_set.append(i)
+
+    mask = Variable(torch.zeros(output_size)).cuda()
+    for i in corrective_set: mask[i] = 1.0
+
     # get output from model
     model = torch.load("model.model")
     output = model(input)
     output = output.transpose(0,1) # batch must be on the first axis
-    '''put mask here'''
+    for i in range(seq_len):
+        output[0,i] = output[0,i] * mask
     values, indices = output.max(2)
 
     # convert into list for reverse mapping
@@ -233,8 +245,11 @@ def predict():
     reverse_index = pickle_return('reverse_index.p')
     predict = []
     for num in indices:
+        if num == 0 and OoV: predict.append(OoV.pop(0))
         if num != 0: predict.append(reverse_index[num])
-    print "Corrected sentence is %s" % (" ".join(predict))
+    sentence = " ".join(predict)
+    sentence = sentence[0].upper() + sentence[1:]
+    print "Corrected sentence is: %s" % (sentence)
 
 
 choice = raw_input("Enter an option (%s), (%s): " % ("1. Train model", "2. Correct sentence"))
