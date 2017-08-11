@@ -11,11 +11,11 @@ decoder_hidden_size = 100
 output_size = 31086
 learning_rate = 0.004
 momentum = 0.95
-epochs = 2
-batch_size = 55
+epochs = 1
+batch_size = 60
 seq_len = 30
 word_dim = output_size
-loss_function = nn.CrossEntropyLoss().cuda()
+loss_function = nn.NLLLoss().cuda()
 evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
@@ -86,7 +86,7 @@ class Decoder(nn.Module):
 
             final_output[i] = decoder_output
 
-        return F.softmax(final_output)
+        return F.log_softmax(final_output)
 
 class Seq2Seq(nn.Module):
     def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
@@ -224,12 +224,12 @@ def predict():
     input = Variable(torch.from_numpy(ps([sentence_tmp], maxlen=seq_len)).long())
     input = input.cuda()
 
-    corrective_set = pickle_return('corrective_set.p')[0]
+    corrective_set = pickle_return('corrective_set.p')
     for i in sentence_tmp:
         if i not in corrective_set: corrective_set.append(i)
 
     mask = Variable(torch.zeros(output_size)).cuda()
-    for i in corrective_set: mask[i] = 1.0
+    for i in corrective_set: mask[i] = -1.0 # because log_softmax is the final activation
 
     # get output from model
     model = torch.load("model.model")
@@ -242,6 +242,18 @@ def predict():
     # convert into list for reverse mapping
     indices = indices.cpu()
     indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
+
+    # assume that indices that happen more than three times are useless
+    count = {}
+    for i in indices:
+        if i not in count: count[i] = 1
+        else: count[i] += 1
+    count_list = [(value, key) for key, value in count.items()]
+    del_key = max(count_list)[1] if max(count_list)[0] > 3 else 0
+    del_key = del_key if del_key != 0 else -1 # do not remove null pads
+    indices = filter(lambda a: a != del_key, indices)
+
+    # reverse mapping
     reverse_index = pickle_return('reverse_index.p')
     predict = []
     for num in indices:
