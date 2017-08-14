@@ -17,9 +17,8 @@ encoder_hidden_size = 100
 decoder_hidden_size = 100
 output_size = pickle_return('output_size.p')
 learning_rate = 0.005
-#momentum = 0.9
-epochs = 15000
-batch_size = 2
+epochs = 4
+batch_size = 50
 seq_len = 20
 word_dim = output_size
 loss_function = nn.CrossEntropyLoss().cuda()
@@ -32,7 +31,7 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
         #self.embedding.weight = nn.Parameter(embeddings.double())
-        self.embedding.weight.requires_grad = True
+        #self.embedding.weight.requires_grad = True
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
     def get_hidden(self, batch_size):
@@ -149,7 +148,6 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
     output = seq2seq(input)
     output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
     target = target.cuda()
-    print target
 
     loss = 0.0
     for i in range(target.size(0)): # target.size(0) is the batch axis

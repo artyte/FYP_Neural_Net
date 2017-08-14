@@ -213,8 +213,7 @@ def prepare_input():
 
 	train_data = []
 	test_data = []
-	#threshold = int(row_count * 0.4)
-	threshold = 1
+	threshold = int(row_count * 0.4)
 	for index, row in enumerate(read):
 		if(index < threshold): train_data.append(row)
 	f.close()
