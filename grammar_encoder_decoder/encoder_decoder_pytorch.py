@@ -5,18 +5,25 @@ import numpy as np
 from torch import optim
 from torch.autograd import Variable
 
-# enter hyperparameters heret
+def pickle_return(filename):
+    import pickle
+    f = open(filename, 'r')
+    data = pickle.load(f)
+    f.close()
+    return data
+
+# enter hyperparameters here
 encoder_hidden_size = 100
 decoder_hidden_size = 100
-output_size = 31086
-learning_rate = 0.004
-momentum = 0.95
-epochs = 1
-batch_size = 60
-seq_len = 30
+output_size = pickle_return('output_size.p')
+learning_rate = 0.005
+#momentum = 0.9
+epochs = 15000
+batch_size = 2
+seq_len = 20
 word_dim = output_size
-loss_function = nn.NLLLoss().cuda()
-evaluate_rate = 10 # print error per 'evaluate_rate' number of iterations
+loss_function = nn.CrossEntropyLoss().cuda()
+evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
     def __init__(self, embeddings, hidden_size):
@@ -24,7 +31,7 @@ class Encoder(nn.Module):
 
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
-        self.embedding.weight = nn.Parameter(embeddings.double())
+        #self.embedding.weight = nn.Parameter(embeddings.double())
         self.embedding.weight.requires_grad = True
         self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
 
@@ -86,7 +93,7 @@ class Decoder(nn.Module):
 
             final_output[i] = decoder_output
 
-        return F.log_softmax(final_output)
+        return F.log_softmax(final_output) * -1
 
 class Seq2Seq(nn.Module):
     def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
@@ -102,13 +109,6 @@ class Seq2Seq(nn.Module):
 
         return output
 
-def pickle_return(filename):
-    import pickle
-    f = open(filename, 'r')
-    data = pickle.load(f)
-    f.close()
-    return data
-
 def pickle_dump(filename, data):
     import pickle
     f = open(filename, 'w')
@@ -119,7 +119,6 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batc
     import random
     from keras.preprocessing.sequence import pad_sequences as ps
 
-    # batch = pickle_return('training_vectors_cache.p')
     final_input = []
     final_output = []
     epoch_finished = False
@@ -140,9 +139,6 @@ def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batc
     y = ps([i[::-1] for i in final_output], maxlen=seq_len).tolist()
     final_output = Variable(torch.from_numpy(np.array([i[::-1] for i in y])).long())
 
-    # do not repeat same possibly same random on next batch call
-    # pickle_dump('training_vectors_cache.p', batch)
-
     return final_input, final_output, epoch_finished, batch
 
 def train(seq2seq, input, target, seq2seq_optimizer, criterion):
@@ -153,6 +149,7 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
     output = seq2seq(input)
     output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
     target = target.cuda()
+    print target
 
     loss = 0.0
     for i in range(target.size(0)): # target.size(0) is the batch axis
@@ -196,7 +193,7 @@ def make_model():
 
     # initilize optimizers & loss functions here
     # don't initilize in the train function because the net can't keep track if these variables are deallocated
-    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate, momentum=momentum)
+    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate)
     criterion = loss_function
 
     seq2seq = evaluate(seq2seq, seq2seq_optimizer, criterion)
@@ -220,8 +217,10 @@ def predict():
         else: sentence_tmp.append(int(index_map[word][1]))
 
     # make sentence_tmp list of list to fit keras api
+    # reverse to pad from end -> pad -> reverse -> convert to pytorch tensor
     from keras.preprocessing.sequence import pad_sequences as ps
-    input = Variable(torch.from_numpy(ps([sentence_tmp], maxlen=seq_len)).long())
+    x = ps([i[::-1] for i in [sentence_tmp]], maxlen=seq_len).tolist()
+    input = Variable(torch.from_numpy(np.array([i[::-1] for i in x])).long())
     input = input.cuda()
 
     corrective_set = pickle_return('corrective_set.p')
@@ -229,7 +228,7 @@ def predict():
         if i not in corrective_set: corrective_set.append(i)
 
     mask = Variable(torch.zeros(output_size)).cuda()
-    for i in corrective_set: mask[i] = -1.0 # because log_softmax is the final activation
+    for i in corrective_set: mask[i] = 1.0 # because log_softmax is the final activation
 
     # get output from model
     model = torch.load("model.model")
@@ -244,14 +243,14 @@ def predict():
     indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
 
     # assume that indices that happen more than three times are useless
+    # note: this is a bit gimmicky
     count = {}
     for i in indices:
         if i not in count: count[i] = 1
         else: count[i] += 1
     count_list = [(value, key) for key, value in count.items()]
-    del_key = max(count_list)[1] if max(count_list)[0] > 3 else 0
-    del_key = del_key if del_key != 0 else -1 # do not remove null pads
-    indices = filter(lambda a: a != del_key, indices)
+    del_key = [i[1] for i in count_list if i[0] > 3 and i[1] != 0]
+    for key in del_key: indices = filter(lambda a: a != key, indices)
 
     # reverse mapping
     reverse_index = pickle_return('reverse_index.p')

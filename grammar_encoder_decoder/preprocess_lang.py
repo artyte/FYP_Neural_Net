@@ -65,11 +65,12 @@ def make_csv():
     f.close()
 
     # number of sentences vs number of words
+    '''
     tmp = []
     for sen in senlis: tmp.append(len(sen[0].split()))
     import matplotlib.pyplot as plt
     plt.hist(tmp, 100)
-    plt.show()
+    plt.show()'''
 
 def tokenize_all(data):
 	from nltk.tokenize import word_tokenize as wt
@@ -83,6 +84,7 @@ def tokenize_all(data):
 	return original, edited
 
 def index_all(sentences, word_dict):
+	print sentences
 	sentences_tmp = []
 	for sentence in sentences:
 		sentence_tmp = []
@@ -94,7 +96,7 @@ def index_all(sentences, word_dict):
 
 	return sentences_tmp
 
-def get_unique(train_input, train_output, test_input, test_output, threshold=5):
+def get_unique(train_input, train_output, test_input, test_output, threshold=0):
 	a = train_input + train_output + test_input + test_output
 	dic = {}
 	for lis in a:
@@ -104,10 +106,11 @@ def get_unique(train_input, train_output, test_input, test_output, threshold=5):
 	        else: dic[element] = 1
 
     # number of words with that frequency vs frequency of words
-	import matplotlib.pyplot as plt
+	'''
+    import matplotlib.pyplot as plt
 	tmp = [dic[key] for key in dic.keys()]
 	plt.hist(tmp, 450, facecolor='red')
-	plt.show()
+	plt.show()'''
 
 
 	for key in dic.keys():
@@ -171,7 +174,8 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	f.close()
 
 	vocab, reverse_vocab = trim(vocab, reverse_vocab) # some unique tokens don't have an embeding
-	print len(vocab)+1
+	pickle_dump('output_size.p', (len(vocab)+1))
+	print len(vocab) + 1
 
 	embedding_matrix = np.zeros((len(vocab)+1, 100))
 	for word, array in vocab.items(): embedding_matrix[array[1]] = array[0]
@@ -209,15 +213,15 @@ def prepare_input():
 
 	train_data = []
 	test_data = []
-	threshold = int(row_count * 1)
+	#threshold = int(row_count * 0.4)
+	threshold = 1
 	for index, row in enumerate(read):
 		if(index < threshold): train_data.append(row)
-		else: test_data.append(row)
 	f.close()
-
+	print train_data
 	train_input, train_output = tokenize_all(train_data)
 	test_input, test_output = tokenize_all(test_data)
 	produce_data_files(train_input, train_output, test_input, test_output)
 
-#make_csv()
-#prepare_input()
+make_csv()
+prepare_input()
