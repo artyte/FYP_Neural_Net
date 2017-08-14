@@ -13,26 +13,28 @@ def pickle_return(filename):
     return data
 
 # enter hyperparameters here
-encoder_hidden_size = 100
-decoder_hidden_size = 100
+encoder_hidden_size = 200
+decoder_hidden_size = 200
+embedding_size = 200
 output_size = pickle_return('output_size.p')
-learning_rate = 0.005
-epochs = 4
-batch_size = 50
-seq_len = 20
+learning_rate = 0.001
+momentum = 0.9
+weight_decay = 1e-4
+batch_size = 53 # use a prime if possible
+seq_len = 30
 word_dim = output_size
 loss_function = nn.CrossEntropyLoss().cuda()
 evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
 
 class Encoder(nn.Module):
-    def __init__(self, embeddings, hidden_size):
+    def __init__(self, embedding_size, hidden_size, output_size):
         super(Encoder, self).__init__()
 
         self.hidden_size = hidden_size
-        self.embedding = nn.Embedding(embeddings.size(0), embeddings.size(1))
+        self.embedding = nn.Embedding(output_size, embedding_size)
         #self.embedding.weight = nn.Parameter(embeddings.double())
-        #self.embedding.weight.requires_grad = True
-        self.gru = nn.GRU(embeddings.size(1), self.hidden_size, bidirectional=True)
+        self.embedding.weight.requires_grad = True
+        self.gru = nn.GRU(embedding_size, self.hidden_size, bidirectional=True)
 
     def get_hidden(self, batch_size):
         return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
@@ -95,10 +97,10 @@ class Decoder(nn.Module):
         return F.log_softmax(final_output) * -1
 
 class Seq2Seq(nn.Module):
-    def __init__(self, embeddings, encoder_hidden_size, decoder_hidden_size, output_size):
+    def __init__(self, embedding_size, encoder_hidden_size, decoder_hidden_size, output_size):
         super(Seq2Seq, self).__init__()
 
-        self.encoder = Encoder(embeddings, encoder_hidden_size)
+        self.encoder = Encoder(embedding_size, encoder_hidden_size, output_size)
         self.decoder = Decoder(decoder_hidden_size, output_size)
 
     def forward(self, input):
@@ -162,7 +164,8 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
 def evaluate(model, model_optimizer, criterion):
     import time
     loss = 0.0
-    for epoch in range(epochs):
+    epoch = 0
+    while bool(open("continue_epoch.txt").readline()):
         start = time.time()
 
         data = pickle_return('training_vectors.p') # reset temporary batch data for memory efficiency
@@ -181,17 +184,19 @@ def evaluate(model, model_optimizer, criterion):
                 loss = 0.0
                 start = time.time()
 
+        epoch += 1
+
     return model
 
 def make_model():
     # net initilizations
-    embeddings = torch.from_numpy(np.load(open('embeds.npy', 'rb')))
-    seq2seq = Seq2Seq(embeddings, encoder_hidden_size, decoder_hidden_size, output_size)
+    # embeddings = torch.from_numpy(np.load(open('embeds.npy', 'rb')))
+    seq2seq = Seq2Seq(embedding_size, encoder_hidden_size, decoder_hidden_size, output_size)
     seq2seq.cuda()
 
     # initilize optimizers & loss functions here
     # don't initilize in the train function because the net can't keep track if these variables are deallocated
-    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate)
+    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
     criterion = loss_function
 
     seq2seq = evaluate(seq2seq, seq2seq_optimizer, criterion)
@@ -221,7 +226,7 @@ def predict():
     input = Variable(torch.from_numpy(np.array([i[::-1] for i in x])).long())
     input = input.cuda()
 
-    corrective_set = pickle_return('corrective_set.p')
+    corrective_set = pickle_return('indexed_corrective_set.p')
     for i in sentence_tmp:
         if i not in corrective_set: corrective_set.append(i)
 
@@ -240,7 +245,7 @@ def predict():
     indices = indices.cpu()
     indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
 
-    # assume that indices that happen more than three times are useless
+    '''# assume that indices that happen more than three times are useless
     # note: this is a bit gimmicky
     count = {}
     for i in indices:
@@ -248,7 +253,7 @@ def predict():
         else: count[i] += 1
     count_list = [(value, key) for key, value in count.items()]
     del_key = [i[1] for i in count_list if i[0] > 3 and i[1] != 0]
-    for key in del_key: indices = filter(lambda a: a != key, indices)
+    for key in del_key: indices = filter(lambda a: a != key, indices)'''
 
     # reverse mapping
     reverse_index = pickle_return('reverse_index.p')

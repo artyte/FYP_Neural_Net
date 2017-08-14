@@ -35,15 +35,17 @@ def get_tokens():
 
     return choice, tokens
 
-def make_csv():
+def make_csv(value=1.0, choice=1):
     original = []
     edited = []
+    threshold = int(len(open('entries.train').readlines())) * value if choice == 1 else value
     with open('entries.train') as f:
-        for line in f:
-            if len(line) == 1: continue
-            line = line.split('\t')
-            if int(line[0]) == 0: edited.append(line[4])
-            else: edited.append(line[5])
+        for index, line in enumerate(f):
+            if index < threshold:
+                if len(line) == 1: continue
+                line = line.split('\t')
+                if int(line[0]) == 0: edited.append(line[4])
+                else: edited.append(line[5])
 
     import re
     from numpy.random import uniform as rand
@@ -84,7 +86,6 @@ def tokenize_all(data):
 	return original, edited
 
 def index_all(sentences, word_dict):
-	print sentences
 	sentences_tmp = []
 	for sentence in sentences:
 		sentence_tmp = []
@@ -189,7 +190,7 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	pickle_dump('testing_vectors.p', zip(x,y))
 	pickle_dump('index.p', vocab)
 	pickle_dump('reverse_index.p', reverse_vocab)
-	pickle_dump('corrective_set.p', index_all([pickle_return('corrective_set.p')], vocab)[0])
+	pickle_dump('indexed_corrective_set.p', index_all([pickle_return('corrective_set.p')], vocab)[0])
 
 def pickle_return(filename):
 	import pickle
@@ -208,19 +209,25 @@ def prepare_input():
 	import csv
 	f = open('nucle3.2_lang.csv', 'r')
 	read = csv.reader(f)
-	row_count = sum(1 for row in read)
-	f.seek(0)
 
 	train_data = []
 	test_data = []
-	threshold = int(row_count * 0.4)
-	for index, row in enumerate(read):
-		if(index < threshold): train_data.append(row)
+	#threshold = int(row_count * value) if choice == 1 else value
+	for row in read: train_data.append(row)
 	f.close()
-	print train_data
 	train_input, train_output = tokenize_all(train_data)
 	test_input, test_output = tokenize_all(test_data)
 	produce_data_files(train_input, train_output, test_input, test_output)
 
-make_csv()
-prepare_input()
+choice = int(raw_input("Enter an option (%s), (%s), (%s): " % ("1. Process CSV", "2. Prepare input", "3. Both")))
+if choice == 1:
+    choice = int(raw_input("Sample by Proportion (1)/ Absolute (Any other number): "))
+    value = float(raw_input("Type the value: "))
+    make_csv(value, choice)
+elif choice == 2:
+    prepare_input()
+elif choice == 3:
+    choice = int(raw_input("Sample by Proportion (1)/ Absolute (Any other number): "))
+    value = float(raw_input("Type the value: "))
+    make_csv(value, choice)
+    prepare_input()
