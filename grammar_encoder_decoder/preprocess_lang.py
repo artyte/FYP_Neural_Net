@@ -4,6 +4,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 def rmv_particle(sentence, choice, tokens, corrective_set):
+    flag = False # use to tell whether any edit really happened
     import random
     choice = random.choice(choice)
     random.shuffle(tokens[choice]) # ensure that a batch of tokens aren't always read in the same order
@@ -16,9 +17,10 @@ def rmv_particle(sentence, choice, tokens, corrective_set):
         if tmp in token:
             if tmp not in corrective_set: corrective_set.append(tmp)
             sentence.remove(word)
+            flag = True
             break
 
-    return " ".join(sentence)
+    return " ".join(sentence), flag
 
 def get_tokens():
     choice = []
@@ -51,16 +53,23 @@ def make_csv(value=1.0, choice=1):
     from numpy.random import uniform as rand
     corrective_set = [] # removed tokens used in perturbation of sentences
     choice, tokens = get_tokens()
+    label = []
     for i, sentence in enumerate(edited):
         edited[i] = re.sub(' +', ' ', sentence)
         edited[i] = re.sub('\n', '', edited[i])
-        if rand(0,1) <= 0.75: original.append(rmv_particle(edited[i], choice, tokens, corrective_set))
-        else: original.append(edited[i])
+        if rand(0,1) <= 0.75:
+            tmp = rmv_particle(edited[i], choice, tokens, corrective_set)
+            original.append(tmp[0])
+            if tmp[1]: label.append(1)
+            else: label.append(0)
+        else:
+            original.append(edited[i])
+            label.append(0)
 
     pickle_dump('corrective_set.p', corrective_set)
 
     import csv
-    senlis = zip(original,edited)
+    senlis = [list(item) + [label[i]] for i, item in enumerate(zip(original,edited))]
     f = open('nucle3.2_lang.csv', 'w')
     write = csv.writer(f)
     for row in senlis: write.writerow(row)
@@ -160,7 +169,7 @@ def trim(vocab, reverse_vocab):
 
 	return new_vocab, new_reverse_vocab
 
-def produce_data_files(train_input, train_output, test_input, test_output):
+def produce_data_files(train_input, train_output, train_label, test_input, test_output, test_label):
 	vocab, reverse_vocab = get_unique(train_input, train_output, test_input, test_output)
 	reverse_vocab[0] = '#null#'
 
@@ -184,10 +193,10 @@ def produce_data_files(train_input, train_output, test_input, test_output):
 	np.save(open("embeds.npy", 'wb'), embedding_matrix)
 	x = index_all(train_input, vocab)
 	y = index_all(train_output, vocab)
-	pickle_dump('training_vectors.p', zip(x,y))
+	pickle_dump('training_vectors.p', [list(item) + [int(train_label[i])] for i, item in enumerate(zip(x,y))])
 	x = index_all(test_input, vocab)
 	y = index_all(test_output, vocab)
-	pickle_dump('testing_vectors.p', zip(x,y))
+	pickle_dump('testing_vectors.p', [list(item) + [int(test_label[i])] for i, item in enumerate(zip(x,y))])
 	pickle_dump('index.p', vocab)
 	pickle_dump('reverse_index.p', reverse_vocab)
 	pickle_dump('indexed_corrective_set.p', index_all([pickle_return('corrective_set.p')], vocab)[0])
@@ -211,13 +220,17 @@ def prepare_input():
 	read = csv.reader(f)
 
 	train_data = []
+	train_label = []
 	test_data = []
+	test_label = []
 	#threshold = int(row_count * value) if choice == 1 else value
-	for row in read: train_data.append(row)
+	for row in read:
+        	train_data.append(row[0:2])
+        	train_label.append(row[2])
 	f.close()
 	train_input, train_output = tokenize_all(train_data)
 	test_input, test_output = tokenize_all(test_data)
-	produce_data_files(train_input, train_output, test_input, test_output)
+	produce_data_files(train_input, train_output, train_label, test_input, test_output, test_label)
 
 choice = int(raw_input("Enter an option (%s), (%s), (%s): " % ("1. Process CSV", "2. Prepare input", "3. Both")))
 if choice == 1:

@@ -13,18 +13,45 @@ def pickle_return(filename):
     return data
 
 # enter hyperparameters here
-encoder_hidden_size = 200
-decoder_hidden_size = 200
+label_hidden_size = 100
+encoder_hidden_size = 500
+decoder_hidden_size = 500
 embedding_size = 200
 output_size = pickle_return('output_size.p')
 learning_rate = 0.001
 momentum = 0.9
 weight_decay = 1e-4
-batch_size = 53 # use a prime if possible
+batch_size = 73 # use a prime if possible
 seq_len = 30
 word_dim = output_size
 loss_function = nn.CrossEntropyLoss().cuda()
 evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
+
+class Net(nn.Module):
+    def __init__(self, embedding_size, hidden_size):
+        super(Net, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.embedding = nn.Embedding(output_size, embedding_size)
+        #self.embedding.weight = nn.Parameter(embeddings.double())
+        self.embedding.weight.requires_grad = True
+        self.gru = nn.GRU(embedding_size, self.hidden_size, bidirectional=True)
+        self.out = nn.Linear(seq_len * 2 * self.hidden_size, 1)
+
+    def get_hidden(self, batch_size):
+        return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
+
+    def forward(self, input, hidden):
+        embed = self.embedding(input)
+        embed = embed.transpose(0,1)
+        embed = embed.float()
+        output, _ = self.gru(embed, hidden)
+        output = F.tanh(output)
+        output = output.transpose(0,1) # put batch on first axis
+        output = output.contiguous().view(output.size(0), -1) # flatten seq_len axis into a vector
+        output = self.out(output)
+
+        return F.sigmoid(output)
 
 class Encoder(nn.Module):
     def __init__(self, embedding_size, hidden_size, output_size):
@@ -116,32 +143,6 @@ def pickle_dump(filename, data):
     pickle.dump(data, f)
     f.close()
 
-def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batch=None):
-    import random
-    from keras.preprocessing.sequence import pad_sequences as ps
-
-    final_input = []
-    final_output = []
-    epoch_finished = False
-    for i in range(batch_size):
-        if len(batch) == 0:
-            epoch_finished = True
-            break
-        # use python list here instead of numpy array because numpy array doesn't have append
-        instance = random.choice(batch)
-        batch.remove(instance)
-        final_input.append(instance[0])
-        final_output.append(instance[1])
-
-
-    # reverse to pad from end -> pad -> reverse -> convert to pytorch tensor
-    x = ps([i[::-1] for i in final_input], maxlen=seq_len).tolist()
-    final_input = Variable(torch.from_numpy(np.array([i[::-1] for i in x])).long())
-    y = ps([i[::-1] for i in final_output], maxlen=seq_len).tolist()
-    final_output = Variable(torch.from_numpy(np.array([i[::-1] for i in y])).long())
-
-    return final_input, final_output, epoch_finished, batch
-
 def train(seq2seq, input, target, seq2seq_optimizer, criterion):
     # for each training cycle, zero the gradients out otherwise gradients will accumulate
     seq2seq.zero_grad()
@@ -161,7 +162,7 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
 
     return loss.data[0]
 
-def evaluate(model, model_optimizer, criterion):
+def evaluate(model, model_optimizer, criterion, choice=1):
     import time
     loss = 0.0
     epoch = 0
@@ -172,9 +173,10 @@ def evaluate(model, model_optimizer, criterion):
         epoch_finished = False
         num_of_iterations = 0
         while not epoch_finished:
-            input, output, epoch_finished, data = random_batch(batch=data)
+            input, output, epoch_finished, data = random_batch(batch=data, choice=choice)
             input = input.cuda()
-            loss += train(model, input, output, model_optimizer, criterion)
+            loss += train(model, input, output, model_optimizer, criterion) if choice == 1 \
+            else train_label(model, input, output, model_optimizer, criterion)
 
             num_of_iterations += 1
 
@@ -187,6 +189,61 @@ def evaluate(model, model_optimizer, criterion):
         epoch += 1
 
     return model
+
+def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batch=None, choice=1):
+    import random
+    from keras.preprocessing.sequence import pad_sequences as ps
+
+    final_input = []
+    final_output = []
+    epoch_finished = False
+    for i in range(batch_size):
+        if len(batch) == 0:
+            epoch_finished = True
+            break
+        # use python list here instead of numpy array because numpy array doesn't have append
+        instance = random.choice(batch)
+        batch.remove(instance)
+        final_input.append(instance[0])
+        if choice == 1: final_output.append(instance[1])
+        else: final_output.append(int(instance[2]))
+
+
+    # reverse to pad from end -> pad -> reverse -> convert to pytorch tensor
+    x = ps([i[::-1] for i in final_input], maxlen=seq_len).tolist()
+    final_input = Variable(torch.from_numpy(np.array([i[::-1] for i in x])).long())
+    if choice == 1:
+        y = ps([i[::-1] for i in final_output], maxlen=seq_len).tolist()
+        final_output = Variable(torch.from_numpy(np.array([i[::-1] for i in y])).long())
+    else: final_output = Variable(torch.Tensor(final_output))
+
+    return final_input, final_output, epoch_finished, batch
+
+def train_label(model, input, target, model_optimizer, criterion):
+    # for each training cycle, zero the gradients out otherwise gradients will accumulate
+    model.zero_grad()
+
+    # pass data through these 2 layers
+    output = model(input, model.get_hidden(input.size(0)))
+    target = target.cuda()
+
+    loss = criterion(output, target)
+
+    loss.backward()
+    torch.nn.utils.clip_grad_norm(model.parameters(), 5)
+    model_optimizer.step()
+
+    return loss.data[0]
+
+def make_label(choice):
+    net = Net(embedding_size, label_hidden_size)
+    net.cuda()
+
+    net_optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=0.05, momentum=momentum, weight_decay=weight_decay)
+    net_criterion = nn.MSELoss().cuda()
+
+    net = evaluate(net, net_optimizer, net_criterion, choice=choice)
+    torch.save(net, "label.label")
 
 def make_model():
     # net initilizations
@@ -245,6 +302,28 @@ def predict():
     indices = indices.cpu()
     indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
 
+    # get label
+    labeler = torch.load("label.label")
+    label = labeler(input, labeler.get_hidden(input.size(0))).cpu().data.numpy().tolist()[0][0]
+    label = 0 if label < 0.5 else 1
+
+    if label == 0:
+        indices = []
+        print "Your sentence is correct"
+    else:
+        indices = indices[:len(sentence_tmp) + 1]
+        print "Sentence seems wrong."
+
+        # reverse mapping
+        reverse_index = pickle_return('reverse_index.p')
+        predict = []
+        for num in indices:
+            if num == 0 and OoV: predict.append(OoV.pop(0))
+            if num != 0: predict.append(reverse_index[num])
+        sentence = " ".join(predict)
+        sentence = sentence[0].upper() + sentence[1:]
+        print "Suggested sentence: %s" % (sentence)
+
     '''# assume that indices that happen more than three times are useless
     # note: this is a bit gimmicky
     count = {}
@@ -255,17 +334,10 @@ def predict():
     del_key = [i[1] for i in count_list if i[0] > 3 and i[1] != 0]
     for key in del_key: indices = filter(lambda a: a != key, indices)'''
 
-    # reverse mapping
-    reverse_index = pickle_return('reverse_index.p')
-    predict = []
-    for num in indices:
-        if num == 0 and OoV: predict.append(OoV.pop(0))
-        if num != 0: predict.append(reverse_index[num])
-    sentence = " ".join(predict)
-    sentence = sentence[0].upper() + sentence[1:]
-    print "Corrected sentence is: %s" % (sentence)
 
 
-choice = raw_input("Enter an option (%s), (%s): " % ("1. Train model", "2. Correct sentence"))
-if choice == "1": make_model()
+
+choice = raw_input("Enter an option (%s), (%s), (%s): " % ("0. Train label", "1. Train model", "2. Correct sentence"))
+if choice == "0": make_label(choice)
+elif choice == "1": make_model()
 elif choice == "2": predict()
