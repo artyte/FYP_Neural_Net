@@ -15,7 +15,7 @@ def pickle_return(filename):
 # enter hyperparameters here
 label_hidden_size = 100
 encoder_hidden_size = 500
-decoder_hidden_size = 500
+decoder_hidden_size = encoder_hidden_size
 embedding_size = 200
 output_size = pickle_return('output_size.p')
 learning_rate = 0.001
@@ -75,15 +75,18 @@ class Encoder(nn.Module):
         return F.tanh(output)
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_size, output_size):
+    def __init__(self, hidden_size, output_size, choice):
         super(Decoder, self).__init__()
 
+        self.choice = choice
         self.output_size = output_size
         self.hidden_size = hidden_size
         self.attn = nn.Linear(self.hidden_size * 3, self.hidden_size)
         self.v = nn.Linear(self.hidden_size, 1)
-        self.shrink = nn.Linear(self.output_size, self.hidden_size)
-        self.gru = nn.GRUCell(self.hidden_size * 3, self.hidden_size)
+        self.shrink = nn.Linear(self.output_size, self.hidden_size) if self.choice == "attention" \
+        else nn.Linear(self.output_size, self.hidden_size)
+        self.gru = nn.GRUCell(self.hidden_size * 3, self.hidden_size) if self.choice == "attention" \
+        else nn.GRU(self.hidden_size * 2 * seq_len, self.output_size)
         self.out = nn.Linear(self.hidden_size * 4, self.output_size)
 
     def get_hidden(self, batch_size):
@@ -99,36 +102,41 @@ class Decoder(nn.Module):
         # create placeholder for net's output
         final_output = Variable(torch.zeros(seq_len, batch_size, self.output_size)).cuda()
 
-        for i in range(seq_len):
-            # mimic keras's timedistributeddense
-            vector = self.attn(torch.cat((hidden.repeat(seq_len,1), encoder_output.contiguous().view(-1, encoder_output.size(-1))), 1))
-            attn_energy = F.softmax(self.v(F.tanh(vector)).contiguous().view(-1,batch_size).transpose(0,1))
+        if self.choice == "attention":
+            for i in range(seq_len):
+                # mimic keras's timedistributeddense
+                vector = self.attn(torch.cat((hidden.repeat(seq_len,1), encoder_output.contiguous().view(-1, encoder_output.size(-1))), 1))
+                attn_energy = F.softmax(self.v(F.tanh(vector)).contiguous().view(-1,batch_size).transpose(0,1))
 
-            # encoder_output axis: S x B x D -> B x S x D (to match attn_energy's B x 1 x S)
-            context = torch.bmm(attn_energy.unsqueeze(1), encoder_output.transpose(0,1)).cuda()
+                # encoder_output axis: S x B x D -> B x S x D (to match attn_energy's B x 1 x S)
+                context = torch.bmm(attn_energy.unsqueeze(1), encoder_output.transpose(0,1)).cuda()
 
-            # context axis: B x 1 x S -> B x S (suitable for GRUCell's api definition)
-            context = context.squeeze(1)
+                # context axis: B x 1 x S -> B x S (suitable for GRUCell's api definition)
+                context = context.squeeze(1)
 
-            decoder_output = self.shrink(decoder_output)
+                decoder_output = self.shrink(decoder_output)
 
-            # concat axis: B x 2*S
-            hidden = F.tanh(self.gru(torch.cat((decoder_output, context), 1), hidden))
+                # concat axis: B x 2*S
+                hidden = F.tanh(self.gru(torch.cat((decoder_output, context), 1), hidden))
 
-            # concat axis : B x 3*S
-            decoder_output = self.out(torch.cat((hidden, decoder_output, context), 1))
-            decoder_output = decoder_output
+                # concat axis : B x 3*S
+                decoder_output = self.out(torch.cat((hidden, decoder_output, context), 1))
+                decoder_output = decoder_output
 
-            final_output[i] = decoder_output
+                final_output[i] = decoder_output
+        elif self.choice == "vanilla":
+            encoder_output = encoder_output.transpose(0,1).view(encoder_output.size(0),-1)
+            context = self.shrink(encoder_output)
+            final_output, _ = self.gru(context.repeat(seq_len,1,1), decoder_output)
 
         return F.log_softmax(final_output) * -1
 
-class Seq2Seq(nn.Module):
+class AttnSeq2Seq(nn.Module):
     def __init__(self, embedding_size, encoder_hidden_size, decoder_hidden_size, output_size):
-        super(Seq2Seq, self).__init__()
+        super(AttnSeq2Seq, self).__init__()
 
         self.encoder = Encoder(embedding_size, encoder_hidden_size, output_size)
-        self.decoder = Decoder(decoder_hidden_size, output_size)
+        self.decoder = Decoder(decoder_hidden_size, output_size, choice="attention")
 
     def forward(self, input):
         # pass data through these 2 layers
@@ -136,6 +144,30 @@ class Seq2Seq(nn.Module):
         output = self.decoder(output, self.decoder.get_hidden(output.size(1)), self.decoder.get_output(output.size(1)))
 
         return output
+
+class Seq2Seq(nn.Module):
+    def __init__(self, embedding_size, encoder_hidden_size, decoder_hidden_size, output_size):
+        super(Seq2Seq, self).__init__()
+
+        self.encoder = Encoder(embedding_size, encoder_hidden_size, output_size)
+        self.decoder = Decoder(decoder_hidden_size, output_size, choice="vanilla")
+
+    def forward(self, input):
+        # pass data through these 2 layers
+        output = self.encoder(input, self.encoder.get_hidden(input.size(0)))
+        output = self.decoder(output, self.decoder.get_hidden(output.size(1)), self.decoder.get_output(output.size(1)))
+
+        return output
+
+def sav_history(data, epoch, choice):
+    sen = "attnseq2seq_" if choice == "attention" else "seq2seq_"
+    sen += str(encoder_hidden_size) + "_"
+    sen += str(learning_rate) + "_"
+    sen += str(epoch)
+
+    import os
+    sen = os.path.join("data",sen)
+    pickle_dump(sen, data)
 
 def pickle_dump(filename, data):
     import pickle
@@ -162,11 +194,15 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
 
     return loss.data[0]
 
-def evaluate(model, model_optimizer, criterion, choice=1):
+def training_loop(model, model_optimizer, criterion, choice=1, net="attention"):
     import time
     loss = 0.0
     epoch = 0
+    epoch_list = []
+    loss_list = []
     while bool(open("continue_epoch.txt").readline()):
+        total_loss = 0.0
+        epoch_list.append(epoch)
         start = time.time()
 
         data = pickle_return('training_vectors.p') # reset temporary batch data for memory efficiency
@@ -183,11 +219,17 @@ def evaluate(model, model_optimizer, criterion, choice=1):
             if num_of_iterations % evaluate_rate == 0:
                 diff = (time.time() - start) / 60.0
                 print 'epoch: %d\titeration: %d\tloss: %f\tduration: %f' %  (epoch + 1, num_of_iterations, loss, diff)
+                total_loss += loss
                 loss = 0.0
                 start = time.time()
 
+        loss_list.append(total_loss)
         epoch += 1
 
+    data = []
+    data.append(epoch_list)
+    data.append(loss_list)
+    sav_history(data, epoch_list[-1], net)
     return model
 
 def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batch=None, choice=1):
@@ -242,13 +284,14 @@ def make_label(choice):
     net_optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=0.05, momentum=momentum, weight_decay=weight_decay)
     net_criterion = nn.MSELoss().cuda()
 
-    net = evaluate(net, net_optimizer, net_criterion, choice=choice)
+    net = training_loop(net, net_optimizer, net_criterion, choice=choice)
     torch.save(net, "label.label")
 
-def make_model():
+def make_model(choice):
     # net initilizations
     # embeddings = torch.from_numpy(np.load(open('embeds.npy', 'rb')))
-    seq2seq = Seq2Seq(embedding_size, encoder_hidden_size, decoder_hidden_size, output_size)
+    seq2seq = AttnSeq2Seq(embedding_size, encoder_hidden_size, decoder_hidden_size, output_size) if choice == 1 \
+    else Seq2Seq(embedding_size, encoder_hidden_size, decoder_hidden_size, output_size)
     seq2seq.cuda()
 
     # initilize optimizers & loss functions here
@@ -256,7 +299,7 @@ def make_model():
     seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
     criterion = loss_function
 
-    seq2seq = evaluate(seq2seq, seq2seq_optimizer, criterion)
+    seq2seq = training_loop(seq2seq, seq2seq_optimizer, criterion, net=choice)
     torch.save(seq2seq, "model.model")
 
 def predict():
@@ -339,5 +382,7 @@ def predict():
 
 choice = raw_input("Enter an option (%s), (%s), (%s): " % ("0. Train label", "1. Train model", "2. Correct sentence"))
 if choice == "0": make_label(choice)
-elif choice == "1": make_model()
+elif choice == "1":
+    choice = raw_input("Enter an option (%s), (%s): " % ("1. Attn Seq2Seq", "2. Vanilla Seq2Seq"))
+    make_model(choice)
 elif choice == "2": predict()

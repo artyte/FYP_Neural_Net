@@ -57,7 +57,7 @@ def make_csv(value=1.0, choice=1):
     for i, sentence in enumerate(edited):
         edited[i] = re.sub(' +', ' ', sentence)
         edited[i] = re.sub('\n', '', edited[i])
-        if rand(0,1) <= 0.75:
+        if rand(0,1) <= 0.95:
             tmp = rmv_particle(edited[i], choice, tokens, corrective_set)
             original.append(tmp[0])
             if tmp[1]: label.append(1)
@@ -65,6 +65,16 @@ def make_csv(value=1.0, choice=1):
         else:
             original.append(edited[i])
             label.append(0)
+
+    # add custom sentences
+    with open('custom_sentences.txt') as f:
+        for index, line in enumerate(f):
+            line = re.sub('\n', '', line)
+            line = line.split('\t')
+            original.append(line[1])
+            edited.append(line[2])
+            label.append(line[0])
+            if line[3] not in corrective_set: corrective_set.append(line[3])
 
     pickle_dump('corrective_set.p', corrective_set)
 
@@ -106,7 +116,7 @@ def index_all(sentences, word_dict):
 
 	return sentences_tmp
 
-def get_unique(train_input, train_output, test_input, test_output, threshold=0):
+def get_unique(train_input, train_output, test_input, test_output, threshold=4):
 	a = train_input + train_output + test_input + test_output
 	dic = {}
 	for lis in a:
