@@ -19,11 +19,8 @@ decoder_hidden_size = encoder_hidden_size
 embedding_size = 200
 output_size = pickle_return('output_size.p')
 learning_rate = 0.001
-momentum = 0.9
-weight_decay = 1e-4
 batch_size = 73 # use a prime if possible
 seq_len = 30
-word_dim = output_size
 loss_function = nn.CrossEntropyLoss().cuda()
 evaluate_rate = 1 # print error per 'evaluate_rate' number of iterations
 
@@ -159,14 +156,14 @@ class Seq2Seq(nn.Module):
 
         return output
 
-def sav_history(data, epoch, choice):
+def sav_history(data, epoch, choice, path="None"):
     sen = "attnseq2seq_" if choice == "attention" else "seq2seq_"
     sen += str(encoder_hidden_size) + "_"
     sen += str(learning_rate) + "_"
     sen += str(epoch)
 
     import os
-    sen = os.path.join("data",sen)
+    sen = os.path.join(path,sen)
     pickle_dump(sen, data)
 
 def pickle_dump(filename, data):
@@ -194,7 +191,7 @@ def train(seq2seq, input, target, seq2seq_optimizer, criterion):
 
     return loss.data[0]
 
-def training_loop(model, model_optimizer, criterion, choice=1, net="attention"):
+def training_loop(model, model_optimizer, criterion, choice=1, net=""):
     import time
     loss = 0.0
     epoch = 0
@@ -202,7 +199,6 @@ def training_loop(model, model_optimizer, criterion, choice=1, net="attention"):
     loss_list = []
     while bool(open("continue_epoch.txt").readline()):
         total_loss = 0.0
-        epoch_list.append(epoch)
         start = time.time()
 
         data = pickle_return('training_vectors.p') # reset temporary batch data for memory efficiency
@@ -225,14 +221,15 @@ def training_loop(model, model_optimizer, criterion, choice=1, net="attention"):
 
         loss_list.append(total_loss)
         epoch += 1
+        epoch_list.append(epoch)
 
     data = []
     data.append(epoch_list)
     data.append(loss_list)
-    sav_history(data, epoch_list[-1], net)
+    if net != "": sav_history(data, epoch_list[-1], net, path="data")
     return model
 
-def random_batch(batch_size=batch_size, seq_len=seq_len, word_dim=word_dim, batch=None, choice=1):
+def random_batch(batch_size=batch_size, seq_len=seq_len, batch=None, choice=1):
     import random
     from keras.preprocessing.sequence import pad_sequences as ps
 
@@ -281,7 +278,7 @@ def make_label(choice):
     net = Net(embedding_size, label_hidden_size)
     net.cuda()
 
-    net_optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=0.05, momentum=momentum, weight_decay=weight_decay)
+    net_optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=0.05, momentum=0.9, weight_decay=1e-4)
     net_criterion = nn.MSELoss().cuda()
 
     net = training_loop(net, net_optimizer, net_criterion, choice=choice)
@@ -296,7 +293,7 @@ def make_model(choice):
 
     # initilize optimizers & loss functions here
     # don't initilize in the train function because the net can't keep track if these variables are deallocated
-    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
+    seq2seq_optimizer = optim.SGD(filter(lambda p: p.requires_grad, seq2seq.parameters()), lr=learning_rate, momentum=0.9, weight_decay=1e-4)
     criterion = loss_function
 
     seq2seq = training_loop(seq2seq, seq2seq_optimizer, criterion, net=choice)
@@ -367,22 +364,75 @@ def predict():
         sentence = sentence[0].upper() + sentence[1:]
         print "Suggested sentence: %s" % (sentence)
 
-    '''# assume that indices that happen more than three times are useless
-    # note: this is a bit gimmicky
-    count = {}
-    for i in indices:
-        if i not in count: count[i] = 1
-        else: count[i] += 1
-    count_list = [(value, key) for key, value in count.items()]
-    del_key = [i[1] for i in count_list if i[0] > 3 and i[1] != 0]
-    for key in del_key: indices = filter(lambda a: a != key, indices)'''
+def evaluate():
+    from nltk.translate.bleu_score import sentence_bleu as bleu
+
+    model = torch.load("model.model")
+    output = model(input)
+    output = output.transpose(0,1) # batch must be on the first axis
+
+    for i in range(seq_len):
+        output[0,i] = output[0,i] * mask
+    values, indices = output.max(2)
+
+    # convert into list for reverse mapping
+    indices = indices.cpu()
+    indices = indices.transpose(1,2).squeeze(1).data.numpy().tolist()
+
+    # get label
+    labeler = torch.load("label.label")
+    label = labeler(input, labeler.get_hidden(input.size(0))).cpu().data.numpy().tolist()
+    label = 0 if label < 0.5 else 1
+
+    if label == 0: indices = input.data.numpy().tolist()
+    else:
+        indices = indices[:len(sentence_tmp) + 1]
+        print "Sentence seems wrong."
+
+        # reverse mapping
+        reverse_index = pickle_return('reverse_index.p')
+        predict = []
+        for num in indices:
+            if num == 0 and OoV: predict.append(OoV.pop(0))
+            if num != 0: predict.append(reverse_index[num])
+        sentence = " ".join(predict)
+        sentence = sentence[0].upper() + sentence[1:]
+        print "Suggested sentence: %s" % (sentence)
+
+    from nltk.metrics.scores import precision as p
+    from nltk.metrics.scores import recall as r
+    from nltk.metrics.scores import f_measure as f
+    from nltk.translate.bleu_score import sentence_bleu as bleu
+
+    references=[]
+    candidates=[]
+
+    precision = 0.0
+    recall = 0.0
+    f_measure = 0.0
+    bleu = 0.0
+    num = 0.0
+
+    for reference, candidate in zip(references, candidates):
+        precision += p(reference, candidate)
+        recall += r(reference, candidate)
+        f_measure += f(reference, candidate)
+        bleu += bleu([list(reference)], list(candidate))
+        num += 1.0
+
+    precision /= num
+    recall /= num
+    f_measure /= num
+    bleu /= num
+
+    data = {"precision":precision, "recall":recall, "f_measure":f_measure, "bleu":bleu}
+    sav_history(data, path="results")
 
 
-
-
-choice = raw_input("Enter an option (%s), (%s), (%s): " % ("0. Train label", "1. Train model", "2. Correct sentence"))
+choice = raw_input("Enter an option (%s), (%s), (%s), (%s): " % ("0. Train label", "1. Train model", "2. Correct sentence", "3. Evaluate"))
 if choice == "0": make_label(choice)
 elif choice == "1":
     choice = raw_input("Enter an option (%s), (%s): " % ("1. Attn Seq2Seq", "2. Vanilla Seq2Seq"))
     make_model(choice)
 elif choice == "2": predict()
+elif choice == "3": evaluate()
