@@ -2,11 +2,8 @@ import torch.nn as nn
 hyperparameters["evaluate_rate"] = data[0]
 hyperparameters["loss_function"] = nn.CrossEntropyLoss().cuda()
 
-import pickle
-f = open(join("data", "output_size.p"))
-output_size = pickle.load(f)
-hyperparameters["output_size"] = output_size
-f.close()
+from convenient_pickle import pickle_return as pr
+hyperparameters["output_size"] = pr(join("data", "output_size.p"))
 
 import model
 model.main(hyperparameters, option="train model")

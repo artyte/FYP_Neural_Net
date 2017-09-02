@@ -1,3 +1,2 @@
-def main(hyperparameters):
+def main(hyperparameters, option=None):
     print hyperparameters
-    

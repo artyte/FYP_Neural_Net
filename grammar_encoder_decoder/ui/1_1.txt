@@ -1,5 +1,4 @@
 Do you want to sample data by (1: Proportion) (2: Absolute) (0: Return): 
 1-Please enter a proportion value (0 to 100): 
-1-Build (character/word) level: 
 2-Please enter an absolute value (Positive whole number): 
-2-Build (character/word) level: 
+A-Build (character/word) level: 

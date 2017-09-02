@@ -4,94 +4,94 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 def rmv_particle(sentence, choice, tokens, corrective_set):
-    flag = False # use to tell whether any edit really happened
-    import random
-    choice = random.choice(choice)
-    random.shuffle(tokens[choice]) # ensure that a batch of tokens aren't always read in the same order
-    token = tokens[choice]
+	flag = False # use to tell whether any edit really happened
+	import random
+	choice = random.choice(choice)
+	random.shuffle(tokens[choice]) # ensure that a batch of tokens aren't always read in the same order
+	token = tokens[choice]
 
-    from nltk.tokenize import word_tokenize as wt
-    sentence = wt(sentence)
-    for word in sentence:
-        tmp = word.lower()
-        if tmp in token:
-            if tmp not in corrective_set: corrective_set.append(tmp)
-            sentence.remove(word)
-            flag = True
-            break
+	from nltk.tokenize import word_tokenize as wt
+	sentence = wt(sentence)
+	for word in sentence:
+		tmp = word.lower()
+		if tmp in token:
+			if tmp not in corrective_set: corrective_set.append(tmp)
+			sentence.remove(word)
+			flag = True
+			break
 
-    return " ".join(sentence), flag
+	return " ".join(sentence), flag
 
 def get_tokens():
-    choice = []
-    tokens = []
-    with open('tokens.txt') as f:
-        i = 0
-        for line in f:
-            import re
-            tmp = line.split(' ')
-            tmp[-1] = re.sub('\n', '', tmp[-1]) # because last token always contain return carraige
-            tokens.append(tmp)
-            choice.append(i)
-            i += 1
+	choice = []
+	tokens = []
+	with open('tokens.txt') as f:
+		i = 0
+		for line in f:
+			import re
+			tmp = line.split(' ')
+			tmp[-1] = re.sub('\n', '', tmp[-1]) # because last token always contain return carraige
+			tokens.append(tmp)
+			choice.append(i)
+			i += 1
 
-    return choice, tokens
+	return choice, tokens
 
 def make_csv(value=1.0, choice=1):
-    original = []
-    edited = []
-    threshold = int(len(open('entries.train').readlines())) * value if choice == 1 else value
-    with open('entries.train') as f:
-        for index, line in enumerate(f):
-            if index < threshold:
-                if len(line) == 1: continue
-                line = line.split('\t')
-                if int(line[0]) == 0: edited.append(line[4])
-                else: edited.append(line[5])
+	original = []
+	edited = []
+	threshold = int(len(open('entries.train').readlines())) * value if choice == 1 else value
+	with open('entries.train') as f:
+		for index, line in enumerate(f):
+			if index < threshold:
+				if len(line) == 1: continue
+				line = line.split('\t')
+				if int(line[0]) == 0: edited.append(line[4])
+				else: edited.append(line[5])
 
-    import re
-    from numpy.random import uniform as rand
-    corrective_set = [] # removed tokens used in perturbation of sentences
-    choice, tokens = get_tokens()
-    label = []
-    for i, sentence in enumerate(edited):
-        edited[i] = re.sub(' +', ' ', sentence)
-        edited[i] = re.sub('\n', '', edited[i])
-        if rand(0,1) <= 0.95:
-            tmp = rmv_particle(edited[i], choice, tokens, corrective_set)
-            original.append(tmp[0])
-            if tmp[1]: label.append(1)
-            else: label.append(0)
-        else:
-            original.append(edited[i])
-            label.append(0)
+	import re
+	from numpy.random import uniform as rand
+	corrective_set = [] # removed tokens used in perturbation of sentences
+	choice, tokens = get_tokens()
+	label = []
+	for i, sentence in enumerate(edited):
+		edited[i] = re.sub(' +', ' ', sentence)
+		edited[i] = re.sub('\n', '', edited[i])
+		if rand(0,1) <= 0.95:
+			tmp = rmv_particle(edited[i], choice, tokens, corrective_set)
+			original.append(tmp[0])
+			if tmp[1]: label.append(1)
+			else: label.append(0)
+		else:
+			original.append(edited[i])
+			label.append(0)
 
-    # add custom sentences
-    with open('custom_sentences.txt') as f:
-        for index, line in enumerate(f):
-            line = re.sub('\n', '', line)
-            line = line.split('\t')
-            original.append(line[1])
-            edited.append(line[2])
-            label.append(line[0])
-            if line[3] not in corrective_set: corrective_set.append(line[3])
+	# add custom sentences
+	with open('custom_sentences.txt') as f:
+		for index, line in enumerate(f):
+			line = re.sub('\n', '', line)
+			line = line.split('\t')
+			original.append(line[1])
+			edited.append(line[2])
+			label.append(line[0])
+			if line[3] not in corrective_set: corrective_set.append(line[3])
 
-    pickle_dump('corrective_set.p', corrective_set)
+	pickle_dump('corrective_set.p', corrective_set)
 
-    import csv
-    senlis = [list(item) + [label[i]] for i, item in enumerate(zip(original,edited))]
-    f = open('nucle3.2_lang.csv', 'w')
-    write = csv.writer(f)
-    for row in senlis: write.writerow(row)
-    f.close()
+	import csv
+	senlis = [list(item) + [label[i]] for i, item in enumerate(zip(original,edited))]
+	f = open('nucle3.2_lang.csv', 'w')
+	write = csv.writer(f)
+	for row in senlis: write.writerow(row)
+	f.close()
 
-    # number of sentences vs number of words
-    '''
-    tmp = []
-    for sen in senlis: tmp.append(len(sen[0].split()))
-    import matplotlib.pyplot as plt
-    plt.hist(tmp, 100)
-    plt.show()'''
+	# number of sentences vs number of words
+	'''
+	tmp = []
+	for sen in senlis: tmp.append(len(sen[0].split()))
+	import matplotlib.pyplot as plt
+	plt.hist(tmp, 100)
+	plt.show()'''
 
 def tokenize_all(data):
 	from nltk.tokenize import word_tokenize as wt
@@ -120,14 +120,14 @@ def get_unique(train_input, train_output, test_input, test_output, threshold=4):
 	a = train_input + train_output + test_input + test_output
 	dic = {}
 	for lis in a:
-	    for element in lis:
-	        element = element.lower()
-	        if element in dic: dic[element] += 1
-	        else: dic[element] = 1
+		for element in lis:
+			element = element.lower()
+			if element in dic: dic[element] += 1
+			else: dic[element] = 1
 
-    # number of words with that frequency vs frequency of words
+	# number of words with that frequency vs frequency of words
 	'''
-    import matplotlib.pyplot as plt
+	import matplotlib.pyplot as plt
 	tmp = [dic[key] for key in dic.keys()]
 	plt.hist(tmp, 450, facecolor='red')
 	plt.show()'''
@@ -146,15 +146,15 @@ def get_unique(train_input, train_output, test_input, test_output, threshold=4):
 	reverse_dic = {}
 	index = 1
 	for array in lis:
-	    dic[array[0]] = [array[1], index]
-	    reverse_dic[index] = array[0]
-	    index += 1
+		dic[array[0]] = [array[1], index]
+		reverse_dic[index] = array[0]
+		index += 1
 
 	return dic, reverse_dic
 
 def trim(vocab, reverse_vocab):
 	for item in vocab.keys():
-	    if type(vocab[item][0]) == int:
+		if type(vocab[item][0]) == int:
 			del reverse_vocab[vocab[item][1]]
 			del vocab[item]
 
@@ -235,8 +235,8 @@ def prepare_input():
 	test_label = []
 	#threshold = int(row_count * value) if choice == 1 else value
 	for row in read:
-        	train_data.append(row[0:2])
-        	train_label.append(row[2])
+			train_data.append(row[0:2])
+			train_label.append(row[2])
 	f.close()
 	train_input, train_output = tokenize_all(train_data)
 	test_input, test_output = tokenize_all(test_data)
@@ -244,13 +244,13 @@ def prepare_input():
 
 choice = int(raw_input("Enter an option (%s), (%s), (%s): " % ("1. Process CSV", "2. Prepare input", "3. Both")))
 if choice == 1:
-    choice = int(raw_input("Sample by Proportion (1)/ Absolute (Any other number): "))
-    value = float(raw_input("Type the value: "))
-    make_csv(value, choice)
+	choice = int(raw_input("Sample by Proportion (1)/ Absolute (Any other number): "))
+	value = float(raw_input("Type the value: "))
+	make_csv(value, choice)
 elif choice == 2:
-    prepare_input()
+	prepare_input()
 elif choice == 3:
-    choice = int(raw_input("Sample by Proportion (1)/ Absolute (Any other number): "))
-    value = float(raw_input("Type the value: "))
-    make_csv(value, choice)
-    prepare_input()
+	choice = int(raw_input("Sample by Proportion (1)/ Absolute (Any other number): "))
+	value = float(raw_input("Type the value: "))
+	make_csv(value, choice)
+	prepare_input()

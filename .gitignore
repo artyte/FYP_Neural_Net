@@ -6,8 +6,9 @@
 *.txt
 !**/ui/*.txt
 !**/results/*.txt
+!custom_sentences.txt
 !continue_epoch.txt
+!filenames.txt
 *.model
 model
 *.train
-
