@@ -1,0 +1,5 @@
+sentence = raw_input("Enter a sentence to correct: ")
+
+import model
+model.main(hyperparameters, model_name=model_name, option="correct sentence")
+

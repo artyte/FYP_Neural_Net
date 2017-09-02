@@ -4,7 +4,10 @@
 *.csv
 *.npy
 *.txt
+!**/ui/*.txt
+!**/results/*.txt
+!continue_epoch.txt
 *.model
 model
 *.train
-*.label
+

@@ -1,0 +1,3 @@
+import preprocess
+sample_by = "proportion" if int(sub_choice) == 1 else "absolute"
+preprocess.main({sample_by:data[0], "level":Ldata[1]})

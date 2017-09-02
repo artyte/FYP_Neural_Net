@@ -1,0 +1,8 @@
+hyperparam_file = open("hyperparam_defaults")
+hyperparams = hyperparam_file.readlines()
+hyperparam_file.close()
+
+import re
+for i, hyperparam in enumerate(hyperparams):
+	hyperparam = re.sub('\n', '', hyperparam)
+	hyperparameters[hyperparam] = data[i]

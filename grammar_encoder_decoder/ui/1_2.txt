@@ -1,0 +1,12 @@
+!Selected model (	)
+Enter an option (1: Create Hyperparameters) (2.Select Model) (3: Train labeller) (4: Train Corrector) (5: Correct) (6: Evaluate) (0: Return): 
+1-Enter a seq2seq type (attention/vanilla): 
+1-Enter labeller hidden size: 
+1-Enter encoder hidden size: 
+1-Enter decoder hidden size: 
+1-Enter embedding hidden size: 
+1-Enter learning rate: 
+1-Enter batch size: 
+1-Enter sequence length: 
+3-Enter evaluate rate: 
+4-Enter evaluate rate: 
