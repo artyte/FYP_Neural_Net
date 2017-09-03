@@ -1,8 +1,6 @@
 import torch.nn as nn
-
 hyperparameters = {
 "seq2seq_type":"attention",
-"label_hidden_size":100,
 "encoder_hidden_size":500,
 "decoder hidden size":500,
 "embed_hidden_size":300,

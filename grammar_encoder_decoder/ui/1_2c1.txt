@@ -1,6 +1,4 @@
-hyperparam_file = open(join("data","hyperparam_defaults.txt"))
-hyperparams = hyperparam_file.readlines()
-hyperparam_file.close()
+hyperparams = open(join("data","hyperparam_defaults.txt")).readlines()
 
 import re
 for i, hyperparam in enumerate(hyperparams):

@@ -9,6 +9,7 @@
 !continue_epoch.txt
 !filenames.txt
 !hyperparam_defaults.txt
+!param_format.txt
 *.model
 model
 *.train

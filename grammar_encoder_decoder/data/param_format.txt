@@ -1,0 +1,12 @@
+import torch.nn as nn
+hyperparameters = {
+"seq2seq_type":%%,
+"encoder_hidden_size":%%,
+"decoder hidden size":%%,
+"embed_hidden_size":%%,
+"lr":%%,
+"batch_size":%%,
+"seq_len":%%,
+"loss_function":%%,
+"output_size":%%
+}

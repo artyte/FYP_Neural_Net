@@ -10,7 +10,7 @@ log_long = parser.parse_args().log_long
 pickle_dump(join("data", "log_short.p"), log_short)
 pickle_dump(join("data", "log_long.p"), log_long)
 
-def loop_line(lines, *arg):
+def loop_line(lines, *args):
 	choice = None
 	data = []
 
@@ -23,10 +23,10 @@ def loop_line(lines, *arg):
 		# don't ask for input
 		if line[0] == "!":
 			line = line[1:]
-			if len(arg) == 2 and arg[0] == "2":
+			if len(args) == 2 and args[0] == "2":
 				line = line.split("\t")
-				if arg[1] == None: line.insert(1, "None")
-				else: line.insert(1, arg[1])
+				if args[1] == None: line.insert(1, "None")
+				else: line.insert(1, args[1])
 				line = " ".join(line)
 			print line
 			continue
