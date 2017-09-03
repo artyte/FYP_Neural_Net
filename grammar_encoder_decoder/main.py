@@ -1,3 +1,15 @@
+# set up logging
+from convenient_pickle import pickle_dump
+from os.path import join
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('-ls', '--log-short', dest='log_short', action='store_true', help='show short logging messages')
+parser.add_argument('-ll', '--log-long', dest='log_long', action='store_true', help='show long logging messages')
+log_short = parser.parse_args().log_short
+log_long = parser.parse_args().log_long
+pickle_dump(join("data", "log_short.p"), log_short)
+pickle_dump(join("data", "log_long.p"), log_long)
+
 def loop_line(lines, *arg):
 	choice = None
 	data = []
@@ -42,7 +54,6 @@ def main():
 	file_format = ".txt"
 	file_num = "1"
 
-	from os.path import join
 	while True:
 		with open(join(path, file_num + file_format)) as f:
 			choice, _ = loop_line(f.readlines())

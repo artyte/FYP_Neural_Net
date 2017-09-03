@@ -1,4 +1,4 @@
-hyperparam_file = open("hyperparam_defaults")
+hyperparam_file = open(join("data","hyperparam_defaults.txt"))
 hyperparams = hyperparam_file.readlines()
 hyperparam_file.close()
 

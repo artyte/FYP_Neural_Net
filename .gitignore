@@ -1,5 +1,4 @@
 *.sgml
-*.p
 *.pyc
 *.csv
 *.npy
@@ -9,6 +8,7 @@
 !custom_sentences.txt
 !continue_epoch.txt
 !filenames.txt
+!hyperparam_defaults.txt
 *.model
 model
 *.train

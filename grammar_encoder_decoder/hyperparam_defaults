@@ -1,8 +1,0 @@
-seq2seq_type
-label_hidden_size
-encoder_hidden_size
-decoder hidden size
-embed_hidden_size
-lr
-batch_size
-seq_len

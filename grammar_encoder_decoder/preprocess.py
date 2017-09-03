@@ -1,6 +1,9 @@
 from os.path import join
+from convenient_pickle import pickle_return
 
 path = "data"
+log_short = pickle_return(join(path, "log_short.p"))
+log_long = pickle_return(join(path, "log_long.p"))
 
 def perturb_and_label(correct, corrects, wrongs, labels, particles, sentence_mode):
 	import re
@@ -36,13 +39,13 @@ def label(correct, corrects, wrong, wrongs, labels, sentence_mode):
 	corrects.append(correct)
 
 	wrong2 = wrong[:] # make a copy of wrong so that wrongs won't be mutated by original wrong
-	# pad wrong's missing spots to ensure comparison between wrong and correct is done properly
+	# labels: 0->inexistent 1->same 2->change
 	for index, word in enumerate(correct):
 		try:
-			if word == wrong2[index]: wrong2[index] = 0
-			else: wrong2.insert(index, 1)
+			if word == wrong2[index]: wrong2[index] = 1
+			else: wrong2.insert(index, 2)
 		except IndexError:
-			wrong2.insert(index, 1)
+			wrong2.insert(index, 2)
 	labels.append(wrong2)
 
 	return corrects, wrongs, labels
@@ -88,14 +91,16 @@ def prepare_first_data(sample_by, sample_val, sentence_mode):
 		line = re.sub('\n', '', line)
 		rights, wrongs, labels, particles = perturb_and_label(line, rights, wrongs, labels, particles, sentence_mode)
 
-	'''
-	# debug
-	for i in zip(rights, wrongs, labels):
-		print i, "\n"
-	print particles
-	'''
+	if log_long:
+		for i in zip(rights, wrongs, labels):
+			print i, "\n"
+		print particles
 
-	#[list(item) for item in zip(wrongs, rights, labels)]
+	if log_short:
+		# number of sentences vs number of words in that sentence
+		import matplotlib.pyplot as plt
+		plt.hist([len(right) for right in rights], 100)
+		plt.show()
 
 	return zip(wrongs, rights, labels), particles
 
@@ -110,25 +115,23 @@ def create_index_maps(data, threshold=5):
 			if word not in index_map: index_map[word] = 1
 			else: index_map[word] += 1
 
-	'''
-	# number of words with that frequency vs frequency of words
-	import matplotlib.pyplot as plt
-	plt.hist([index_map[word] for word in index_map.keys()], 450, facecolor='red')
-	plt.show()'''
+	if log_long:
+		# number of words with that frequency vs frequency of words
+		import matplotlib.pyplot as plt
+		plt.hist([index_map[word] for word in index_map.keys()], 450, facecolor='red')
+		plt.show()
 
 	# remove words that appear below or equals to threshold times
 	for word in index_map.keys():
 		if index_map[word] <= threshold: del index_map[word]
 
 	# sorting of words so as to give a proper index
+	# result: descending order of occurences of words in ascending order of words
+	# e.g. [(ab,1),(aa,1),(bb,3)] -> [(bb,3),(aa,1),(ab,1)]
 	from operator import itemgetter
 	index_map = [list(record) for record in index_map.items()]
 	index_map = sorted(index_map, key=itemgetter(0)) # sort by word in ascending order
 	index_map = sorted(index_map, key=itemgetter(1), reverse=True) # sort by word's number of occurence in descending order
-	'''
-	result: descending order of occurences of words in ascending order of words
-	e.g. [(ab,1),(aa,1),(bb,3)] -> [(bb,3),(aa,1),(ab,1)]
-	'''
 	lis = index_map[:]
 
 	# creating actual index maps
@@ -179,7 +182,7 @@ def prepare_input(data, particles):
 			test_data.append([wrong, right])
 			test_label.append([wrong, label])
 
-	print "Vocabulary size:", len(index_map)+1
+	if log_short: print "Vocabulary size:", len(index_map) + 1
 	produce_data_files(train_data, train_label, test_data, test_label, particles, index_map, reverse_index, len(index_map)+1)
 
 def main(preprocessor):
