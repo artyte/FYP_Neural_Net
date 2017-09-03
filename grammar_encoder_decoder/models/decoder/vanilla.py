@@ -22,7 +22,10 @@ class Vanilla(Decoder):
 		final_output = Variable(torch.zeros(self.seq_len, batch_size, self.output_size)).cuda()
 
 		context = self.shrink(encoder_output.contiguous().view(-1, encoder_output.size(-1)))
-		context = context.contiguous().view(-1,batch_size).transpose(0,1)
+		dim = context.size(-1)
+		context = context.view(self.seq_len, batch_size, -1)
+		context = context.transpose(0,2).transpose(0,1).transpose(1,2)
+		context = context.contiguous().view(-1, self.seq_len * dim)
 
 		for i in range(self.seq_len):
 			decoder_output = self.gru(context, decoder_output)
