@@ -41,9 +41,9 @@ def iterate(seq2seq, input, target, optimizer, criterion):
 	output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
 	target = target.cuda()
 
-	loss = 0.0
-	for i in range(target.size(0)): # target.size(0) is the batch axis
-		loss += criterion(output[i], target[i])
+	# target.size(0) is the batch axis
+	loss = sum([criterion(output[i], target[i]) for i in range(target.size(0))])
+	'''for i in range(target.size(0)): loss += criterion(output[i], target[i])'''
 
 	loss.backward()
 

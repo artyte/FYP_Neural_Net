@@ -42,7 +42,6 @@ class Attention(Decoder):
 
 			# concat at S of B x S
 			decoder_output = self.out(torch.cat((hidden, decoder_output, context), 1))
-			decoder_output = decoder_output
 
 			final_output[i] = decoder_output
 
