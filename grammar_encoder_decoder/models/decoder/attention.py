@@ -14,6 +14,7 @@ class Attention(Decoder):
 
 		self.attn = nn.Linear(self.hidden_size * 3, self.hidden_size)
 		self.v = nn.Linear(self.hidden_size, 1)
+		self.shrink = nn.Linear(self.output_size, self.hidden_size)
 		self.gru = nn.GRUCell(self.hidden_size * 3, self.hidden_size)
 		self.out = nn.Linear(self.hidden_size * 4, self.output_size)
 
@@ -45,4 +46,4 @@ class Attention(Decoder):
 
 			final_output[i] = decoder_output
 
-		return F.log_softmax(final_output) * -1
+		return F.softmax(final_output)

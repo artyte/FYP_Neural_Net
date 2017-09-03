@@ -4,6 +4,7 @@ hyperparameters["loss_function"] = nn.CrossEntropyLoss().cuda()
 
 from convenient_pickle import pickle_return as pr
 hyperparameters["output_size"] = pr(join("data", "output_size.p"))
+hyperparameters["index_dim"] = pr(join("data", "output_size.p"))
 
 import correct
 correct.main(hyperparameters, option="train model")

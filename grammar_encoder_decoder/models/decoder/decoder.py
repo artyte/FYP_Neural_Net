@@ -14,8 +14,6 @@ class Decoder(nn.Module):
 		self.output_size = output_size
 		self.hidden_size = hidden_size
 
-		self.shrink = nn.Linear(self.output_size, self.hidden_size)
-
 	def get_hidden(self, batch_size):
 		return Variable(torch.zeros(batch_size, self.hidden_size)).cuda()
 

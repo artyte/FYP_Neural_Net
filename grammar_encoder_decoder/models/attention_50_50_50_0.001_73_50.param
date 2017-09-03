@@ -1,12 +1,13 @@
 import torch.nn as nn
 hyperparameters = {
 "seq2seq_type":"attention",
-"encoder_hidden_size":500,
-"decoder hidden size":500,
-"embed_hidden_size":300,
+"encoder_hidden_size":50,
+"decoder_hidden_size":50,
+"embed_hidden_size":50,
 "lr":0.001,
 "batch_size":73,
-"seq_len":30,
+"seq_len":50,
 "loss_function":nn.CrossEntropyLoss().cuda(),
-"output_size":6000
+"output_size":65,
+"index_dim":65
 }

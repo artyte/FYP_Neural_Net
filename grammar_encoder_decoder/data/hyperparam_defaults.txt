@@ -1,6 +1,6 @@
 seq2seq_type
 encoder_hidden_size
-decoder hidden size
+decoder_hidden_size
 embed_hidden_size
 lr
 batch_size

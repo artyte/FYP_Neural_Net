@@ -8,11 +8,11 @@ log_short = pickle_return(join("data", "log_short.p"))
 log_long = pickle_return(join("data", "log_long.p"))
 
 class Encoder(nn.Module):
-	def __init__(self, embedding_size, hidden_size, output_size):
+	def __init__(self, embedding_size, hidden_size, index_dim):
 		super(Encoder, self).__init__()
 
 		self.hidden_size = hidden_size
-		self.embedding = nn.Embedding(output_size, embedding_size)
+		self.embedding = nn.Embedding(index_dim, embedding_size)
 		self.embedding.weight.requires_grad = True
 		self.gru = nn.GRU(embedding_size, self.hidden_size, bidirectional=True)
 
