@@ -106,7 +106,7 @@ def training_loop(model, optimizer, criterion, option, params):
 
 	return model, params, history
 
-def save_net(model, params, history):
+def save_net(model, params, history, option):
 	import re
 	variables = open(join("data", "hyperparam_defaults.txt")).readlines()
 	variables = [re.sub('\n', '', variable) for variable in variables] # get name of hyperparameters
@@ -126,10 +126,11 @@ def save_net(model, params, history):
 
 	import torch
 	from convenient_pickle import pickle_dump
-	torch.save(model, join("models", name + ".model")) # save model
+	if option == "train label": torch.save(model, join("models", name + ".label")) # save label net
+	elif option == "train model": torch.save(model, join("models", name + ".model")) # save model net
 	pickle_dump(join("models", name + ".history"), history) # save model running histories
 
-	# use readline to retain \n
+	# use readlines to retain \n
 	param_data = []
 	param_data = open(join("data", "param_format.txt")).readlines()
 	param_data = [i.split("%") for i in param_data]
@@ -139,7 +140,6 @@ def save_net(model, params, history):
 
 	variables2.append("nn.CrossEntropyLoss().cuda()")
 	variables2.append(str(params["output_size"]))
-	variables2.append(str(params["index_dim"]))
 	variables2 = variables2[::-1]
 
 	for index, item in enumerate(param_data):
@@ -150,7 +150,7 @@ def save_net(model, params, history):
 def train(params, option):
 	# net initilizations
 	from models.seq2seq import Seq2Seq
-	seq2seq = Seq2Seq(int(params["embed_hidden_size"]), int(params["encoder_hidden_size"]), int(params["decoder_hidden_size"]), int(params["output_size"]), int(params["seq_len"]),  params["seq2seq_type"], int(params["index_dim"])).cuda()
+	seq2seq = Seq2Seq(int(params["embed_hidden_size"]), int(params["encoder_hidden_size"]), int(params["decoder_hidden_size"]), int(params["output_size"]), int(params["seq_len"]),  params["seq2seq_type"], int(params["index_dim"]), option).cuda()
 
 	# initilize optimizers & loss functions
 	# don't initilize in a separate train function because the net can't keep track if these variables are deallocated
@@ -160,16 +160,82 @@ def train(params, option):
 	criterion = params["loss_function"]
 
 	seq2seq, params, history = training_loop(seq2seq, optimizer, criterion, option, params)
-	save_net(seq2seq, params, history)
+	save_net(seq2seq, params, history, option)
 
-'''def correct_sentence():
+def correct_sentence(params, label, model):
+	input = raw_input("Enter a sentence: ")
 
-def evaluate():'''
+	from nltk.tokenize import word_tokenize as wt
+	sentence = wt(input)
+	sentence_tmp = []
 
-def main(params, option=None):
-	if option == "train label" or option == "train model":
-		train(params, option)
-	'''elif option == "correct sentence":
-		correct_sentence()
-	elif option == "evaluate test data":
+	from convenient_pickle import pickle_return
+	index_map = pickle_return(join("data",'index_map.p'))
+	OoV = [] # out of vocabulary
+	for word in sentence:
+		tmp = word # in case of upper case
+		word = word.lower()
+		if word not in index_map:
+			sentence_tmp.append(0)
+			OoV.append(tmp)
+		else: sentence_tmp.append(int(index_map[word][1]))
+
+	# make sentence_tmp list of list to fit keras api
+	# reverse to pad from end -> pad -> reverse -> convert to pytorch tensor
+	from keras.preprocessing.sequence import pad_sequences as ps
+	x = ps([i[::-1] for i in [sentence_tmp]], maxlen=seq_len).tolist()
+	input = Variable(torch.from_numpy(np.array([i[::-1] for i in x])).long())
+	input = input.cuda()
+
+	particles = pickle_return('particles.p')
+	for i in sentence_tmp:
+		if i not in particles: particles.append(i)
+
+	mask = Variable(torch.zeros(output_size)).cuda()
+	for i in particles: mask[i] = 1.0
+
+	# get output from model
+	output = model(input)
+	output = output.transpose(0,1) # batch must be on the first axis
+	for i in range(seq_len):
+		output[0,i] = output[0,i] * mask
+	values, indices = output.max(2)
+
+	# convert into list for reverse mapping
+	indices = indices.cpu()
+	indices = indices.transpose(1,2).squeeze(0).squeeze(0).data.numpy().tolist()
+
+	# get label
+	labels = label(input, label.get_hidden(input.size(0))).cpu().data.numpy().tolist()
+	print labels
+
+	'''labels = 0 if labels < 0.5 else 1
+
+	if labels == 0:
+		indices = []
+		print "Your sentence is correct"
+	else:
+		indices = indices[:len(sentence_tmp) + 1]
+		print "Sentence seems wrong."
+
+		# reverse mapping
+		reverse_index = pickle_return('reverse_index.p')
+		predict = []
+		for num in indices:
+			if num == 0 and OoV: predict.append(OoV.pop(0))
+			if num != 0: predict.append(reverse_index[num])
+		sentence = " ".join(predict)
+		sentence = sentence[0].upper() + sentence[1:]
+		print "Suggested sentence: %s" % (sentence)'''
+
+'''def evaluate():'''
+
+def main(name, option=None):
+	path = "models"
+	if option == "train":
+		train(exec(open(join(path, name + ".param"))), "train label")
+		train(exec(open(join(path, name + ".param"))), "train model")
+	elif option == "correct sentence":
+		correct_sentence(exec(join(path, name + ".param")), torch.load(join(path, name + ".label")), torch.load(join(path, name + ".model")))
+	'''elif option == "evaluate test data":
 		evaluate()'''

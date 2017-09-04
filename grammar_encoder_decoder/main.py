@@ -46,6 +46,22 @@ def loop_line(lines, *args):
 
 	return choice, data
 
+def prepare_hyperparam(data):
+	# use readlines to retain \n
+	param_data = []
+	param_data = open(join("data", "param_format.txt")).readlines()
+	param_data = [i.split("%") for i in param_data]
+	param_data = [k for i in param_data for k in i]
+
+	data.append("nn.CrossEntropyLoss().cuda()")
+	data.append(pickle_return(join("data","output_size.p")))
+	data = data[::-1]
+
+	for index, item in enumerate(param_data):
+		if item == "": param_data[index] = data.pop()
+
+	with open(join("models", name + ".param"), 'w') as f: f.write("".join(param_data))
+
 def main():
 	choice = "N"
 	data = None
@@ -60,7 +76,6 @@ def main():
 		if choice == "0": break
 
 		sub_choice = None
-		hyperparameters = {}
 		model_name = None
 		while True:
 			print "\n"
@@ -68,7 +83,7 @@ def main():
 			# use with because variables have been initialized
 			with open(join(path, file_num + "_" + choice + file_format)) as f:
 				sub_choice, data = loop_line(f.readlines(), choice, model_name)
-				if sub_choice == "1" and choice == "2": model_name = "Custom"
+				if sub_choice == "1" and choice == "2": model_name = prepare_hyperparam(data)
 			if sub_choice == "0": break
 
 			# don't use with because variables created in exec statement may need to be retained

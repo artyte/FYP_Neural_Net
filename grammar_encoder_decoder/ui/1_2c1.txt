@@ -1,8 +1,0 @@
-hyperparams = open(join("data","hyperparam_defaults.txt")).readlines()
-
-hyperparameters = {}
-
-import re
-for i, hyperparam in enumerate(hyperparams):
-	hyperparam = re.sub('\n', '', hyperparam)
-	hyperparameters[hyperparam] = data[i]

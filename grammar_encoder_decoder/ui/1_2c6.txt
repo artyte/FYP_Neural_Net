@@ -1,3 +1,0 @@
-import correct
-correct.main(hyperparameters, model_name=model_name, option="evaluate test data")
-

@@ -5,8 +5,7 @@ model_num = 0
 for model in models:
 	print str(model_num) + ": " + splitext(basename(model))[0]
 	model_num += 1
-model_num = raw_input("Choose a model number: ")
+model_num = int(raw_input("Choose a model number: "))
 
-model_name = basename(models[int(model_num)])
-model_file = open(models[int(model_num)])
-exec(model_file)
+model_name = splitext(basename(models[model_num]))[0]
+print model_name

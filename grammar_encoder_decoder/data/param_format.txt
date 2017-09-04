@@ -9,5 +9,5 @@ hyperparameters = {
 "seq_len":%%,
 "loss_function":%%,
 "output_size":%%,
-"index_dim":%%
+"index_dim":3
 }
