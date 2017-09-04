@@ -47,20 +47,30 @@ def loop_line(lines, *args):
 	return choice, data
 
 def prepare_hyperparam(data):
+
+	model_name = "_".join(data) # initialize model name here because more data is gonna be added
+
 	# use readlines to retain \n
 	param_data = []
 	param_data = open(join("data", "param_format.txt")).readlines()
 	param_data = [i.split("%") for i in param_data]
 	param_data = [k for i in param_data for k in i]
 
+	from convenient_pickle import pickle_return
 	data.append("nn.CrossEntropyLoss().cuda()")
-	data.append(pickle_return(join("data","output_size.p")))
+	data.append(str(pickle_return(join("data","output_size.p"))))
 	data = data[::-1]
 
 	for index, item in enumerate(param_data):
 		if item == "": param_data[index] = data.pop()
 
-	with open(join("models", name + ".param"), 'w') as f: f.write("".join(param_data))
+	if log_short:
+		print "Model name:", model_name
+		print "hyper parameters", param_data
+
+	with open(join("models", model_name + ".param"), 'w') as f: f.write("".join(param_data))
+
+	return model_name
 
 def main():
 	choice = "N"

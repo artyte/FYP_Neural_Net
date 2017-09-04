@@ -32,9 +32,11 @@ def perturb_and_label(correct, corrects, wrongs, labels, particles, sentence_mod
 	return corrects, wrongs, labels, particles
 
 def label(correct, corrects, wrong, wrongs, labels, sentence_mode):
+	from nltk.tokenize import word_tokenize as wt
+
 	# split by character/word level
-	correct = list(correct) if sentence_mode == "character" else correct.split(" ")
-	wrong = list(wrong) if sentence_mode == "character" else wrong.split(" ")
+	correct = list(correct) if sentence_mode == "character" else wt(correct)
+	wrong = list(wrong) if sentence_mode == "character" else wt(wrong)
 	wrongs.append(wrong)
 	corrects.append(correct)
 
@@ -107,13 +109,18 @@ def prepare_first_data(sample_by, sample_val, sentence_mode):
 '''
 Since right have at least all the words in wrong, only right is assumed to be used
 '''
-def create_index_maps(data, threshold=5):
+def create_index_maps(data, particles, threshold=5):
 	index_map = {}
 	for _, right, _ in data:
 		for word in right:
 			word = word.lower()
 			if word not in index_map: index_map[word] = 1
 			else: index_map[word] += 1
+
+	# particles HAVE to be indexable
+	for particle in particles:
+		if particle.lower() not in index_map: index_map[particle.lower()] = threshold + 1
+		elif index_map[particle.lower()] <= threshold: index_map[particle.lower()] = threshold + 1
 
 	if log_long:
 		# number of words with that frequency vs frequency of words
@@ -167,7 +174,7 @@ def prepare_input(data, particles):
 	test_data = []
 	test_label = []
 
-	index_map, reverse_index = create_index_maps(data)
+	index_map, reverse_index = create_index_maps(data, particles)
 
 	import random
 	from numpy.random import uniform as rand

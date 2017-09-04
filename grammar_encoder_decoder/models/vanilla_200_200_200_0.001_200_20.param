@@ -6,8 +6,8 @@ hyperparameters = {
 "embed_hidden_size":200,
 "lr":0.001,
 "batch_size":200,
-"seq_len":200,
+"seq_len":20,
 "loss_function":nn.CrossEntropyLoss().cuda(),
-"output_size":3,
-"index_dim":2734
+"output_size":1770,
+"index_dim":3
 }
