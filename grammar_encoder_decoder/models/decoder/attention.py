@@ -45,4 +45,4 @@ class Attention(Decoder):
 
 			final_output[i] = decoder_output
 
-		return F.softmax(final_output)
+		return F.log_softmax(final_output) * -1

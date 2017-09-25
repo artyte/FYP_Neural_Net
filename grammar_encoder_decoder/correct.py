@@ -10,7 +10,7 @@ def random_batch(params, data=None):
 	final_input = []
 	final_output = []
 	epoch_finished = False
-	for i in range(int(params["batch_size"])):
+	for i in range(params["batch_size"]):
 		if len(data) == 0:
 			epoch_finished = True
 			break
@@ -111,10 +111,12 @@ def training_loop(model, optimizer, criterion, option, params):
 def save_net(model, name, history, option):
 	import torch
 	from convenient_pickle import pickle_dump
-	if option == "train label": torch.save(model, join("models", name + ".label")) # save label net
-	elif option == "train model": torch.save(model, join("models", name + ".model")) # save model net
-	pickle_dump(join("models", name + ".history"), history) # save model running histories
-
+	if option == "train label":
+		torch.save(model, join("models", name + ".label")) # save label net
+		pickle_dump(join("models", name + ".labelhistory"), history) # save model running histories
+	elif option == "train model":
+		torch.save(model, join("models", name + ".model")) # save model net
+		pickle_dump(join("models", name + ".modelhistory"), history) # save model running histories
 
 def train(name, option):
 	hyperparameters = {}
@@ -276,40 +278,67 @@ def one_batch_evaluation(name, input, candidates, params, mode):
 		f_measure += f(set(reference), set(candidate))
 		blu += bleu([str(i) for i in reference], [str(i) for i in candidate])
 
-	return precision, recall, f_measure, blu
+	return precision, recall, f_measure, blu, len(candidates)
 
 def evaluate(name, mode):
 	hyperparameters = {}
 	exec(open(join("models", name + ".param")))
 	params = hyperparameters
 
-	total_loss = [0.0, 0.0, 0.0, 0.0] # total loss per epoch
+	total_loss = [0.0, 0.0, 0.0, 0.0, 0] # total loss per epoch
 
 	# reset temporary batch data for memory efficiency
 	from convenient_pickle import pickle_return
 	data = pickle_return(join("data",'test_data.p'))
 
-	num = len(data)
-
 	epoch_finished = False
 	while not epoch_finished:
+		params["batch_size"] = 73 # in case previously large models use too much memory
 		input, output, epoch_finished, data = random_batch(params, data=data)
 		input = input.cuda()
 		loss = one_batch_evaluation(name, input, output, params, mode)
 		total_loss = [num+loss[i] for i, num in enumerate(total_loss)]
 
-	avg_loss = [i/num for i in total_loss]
+	avg_loss = [i/total_loss[4] for i in total_loss]
 
 	print "Precision:", avg_loss[0]
 	print "Recall:", avg_loss[1]
 	print "F_measure:", avg_loss[2]
 	print "Bleu:", avg_loss[3]
 
+def show_history(name):
+	label_history = pickle_return(join("models", name + ".labelhistory"))
+	model_history = pickle_return(join("models", name + ".modelhistory"))
+
+	import matplotlib.pyplot as plt
+
+	print "This is the labeller stats -------------------------------->"
+	print "Time spent on training:", label_history["total_time"].day - 1, "day(s)", label_history["total_time"].hour, "hour(s)", label_history["total_time"].minute, "minute(s)", label_history["total_time"].second, "second(s)"
+	print "Number of epochs used for training:", label_history["epoch"]
+	plt.plot(label_history["loss_list"][0], label_history["loss_list"][1])
+	plt.ylabel('loss')
+	plt.xlabel('epochs')
+	plt.show()
+
+	print ""
+
+	print "This is the corrector stats ------------------------------->"
+	print "Time spent on training:", model_history["total_time"].day - 1, "day(s)", model_history["total_time"].hour, "hour(s)", model_history["total_time"].minute, "minute(s)", model_history["total_time"].second, "second(s)"
+	print "Number of epochs used for training:", model_history["epoch"]
+	plt.plot(model_history["loss_list"][0], model_history["loss_list"][1])
+	plt.ylabel('loss')
+	plt.xlabel('epochs')
+	plt.show()
+
+	print ""
+
 def main(name, option):
 	if option == "train":
-		train(name, "train label")
 		train(name, "train model")
+		train(name, "train label")
 	elif option == "correct sentence":
 		correct_sentence(name, "correct")
 	elif option == "evaluate test data":
 		evaluate(name, "evaluate")
+	elif option == "show history":
+		show_history(name)

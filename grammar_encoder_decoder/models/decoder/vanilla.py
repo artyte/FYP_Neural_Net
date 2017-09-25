@@ -27,7 +27,7 @@ class Vanilla(Decoder):
 		context = context.transpose(0,1).contiguous().view(-1, self.seq_len * dim)
 
 		for i in range(self.seq_len):
-			decoder_output = self.gru(context, decoder_output)
+			decoder_output = F.tanh(self.gru(context, decoder_output))
 			final_output[i] = decoder_output
 
-		return F.softmax(final_output)
+		return F.log_softmax(final_output) * -1
