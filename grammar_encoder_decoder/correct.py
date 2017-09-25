@@ -9,13 +9,16 @@ def make_batch(params, data):
 	from random import shuffle
 	shuffle(data) # randomize order of data
 
-	input_batch = []
-	output_batch = []
+	data_batch = []
 	for i in range(0, len(data), batch_size):
-		input_batch.append(data[i:i + batch_size][0])
-	for i in range(0, len(data), batch_size):
-		output_batch.append(data[i:i + batch_size][1])
-	return zip(input_batch, output_batch)
+		input_batch = []
+		output_batch = []
+		for item in data[i:i + batch_size]:
+			input_batch.append(item[0])
+			output_batch.append(item[1])
+		data_batch.append((input_batch, output_batch))
+
+	return data_batch
 
 def pad_tensor(params, final_input, final_output):
 	seq_len = int(params["seq_len"])
@@ -291,9 +294,8 @@ def evaluate(name, mode):
 	data = pickle_return(join("data",'test_data.p'))
 
 	epoch_finished = False
+	params["batch_size"] = 73 # in case previously large models use too much memory
 	for input, output in make_batch(params, data):
-		params["batch_size"] = 73 # in case previously large models use too much memory
-
 		input, output = pad_tensor(params, input, output)
 		input = input.cuda()
 		loss = one_batch_evaluation(name, input, output, params, mode)
