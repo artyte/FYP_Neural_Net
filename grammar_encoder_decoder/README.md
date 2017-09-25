@@ -12,12 +12,12 @@ Sentences labelled as correct are preprocessed from [Lang-8 Learner Corpora](htt
 
 ## Descriptions
 The program is fully interactive, therefore only 'main.py' needs to be run. 
--`main.py`: run this to to start the program, follow the ui's instructions to navigate between preprocessing and training/using the model. Use '--help' for more information about user arguments.
--`correct.py`: this file allows you to train/evaluate model, show model history, and correct a sentence.
--`preprocess.py`: this file allows you to preprocess data by number/proportion of samples.
--`data/`: this folder contains all the necessary data (some not uploaded due to copyright policies)
--`models/`: this folder contains model class implementations and saved model information
--`ui/`: this folder contains code for the ui
+- `main.py`: run this to to start the program, follow the ui's instructions to navigate between preprocessing and training/using the model. Use '--help' for more information about user arguments.
+- `correct.py`: this file allows you to train/evaluate model, show model history, and correct a sentence.
+- `preprocess.py`: this file allows you to preprocess data by number/proportion of samples.
+- `data/`: this folder contains all the necessary data (some not uploaded due to copyright policies)
+- `models/`: this folder contains model class implementations and saved model information
+- `ui/`: this folder contains code for the ui
 
 ## Papers
 - [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation](https://arxiv.org/pdf/1406.1078.pdf)
