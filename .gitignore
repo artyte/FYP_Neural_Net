@@ -10,6 +10,7 @@
 !filenames.txt
 !hyperparam_defaults.txt
 !param_format.txt
+!particles.txt
 *.model
 model
 *.train
