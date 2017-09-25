@@ -3,24 +3,24 @@ from convenient_pickle import pickle_return
 log_short = pickle_return(join("data", "log_short.p"))
 log_long = pickle_return(join("data", "log_long.p"))
 
-def random_batch(params, data=None):
-	import random
-	from keras.preprocessing.sequence import pad_sequences as ps
+def make_batch(params, data):
+	batch_size = params["batch_size"]
 
-	final_input = []
-	final_output = []
-	epoch_finished = False
-	for i in range(params["batch_size"]):
-		if len(data) == 0:
-			epoch_finished = True
-			break
-		# use python list here instead of numpy array because numpy array doesn't have append
-		instance = random.choice(data) # don't use shuffle because batch is quite huge
-		data.remove(instance) # remove so that data won't appear again
-		final_input.append(instance[0])
-		final_output.append(instance[1])
+	from random import shuffle
+	shuffle(data) # randomize order of data
 
+	input_batch = []
+	output_batch = []
+	for i in range(0, len(data), batch_size):
+		input_batch.append(data[i:i + batch_size][0])
+	for i in range(0, len(data), batch_size):
+		output_batch.append(data[i:i + batch_size][1])
+	return zip(input_batch, output_batch)
+
+def pad_tensor(params, final_input, final_output):
 	seq_len = int(params["seq_len"])
+
+	from keras.preprocessing.sequence import pad_sequences as ps
 	from torch.autograd import Variable
 	import torch
 	import numpy as np
@@ -30,7 +30,7 @@ def random_batch(params, data=None):
 	y = ps([i[::-1] for i in final_output], maxlen=seq_len).tolist()
 	final_output = Variable(torch.from_numpy(np.array([i[::-1] for i in y])).long())
 
-	return final_input, final_output, epoch_finished, data
+	return final_input, final_output
 
 def iterate(seq2seq, input, target, optimizer, criterion):
 	# for each training cycle, zero the gradients out otherwise gradients will accumulate
@@ -67,15 +67,14 @@ def training_loop(model, optimizer, criterion, option, params):
 	while bool(open("continue_epoch.txt").readline()): # whether to continue running
 		total_loss = 0.0 # total loss per epoch
 
-		start_iterate = time()
-
 		# reset temporary batch data for memory efficiency
 		data = pickle_return(join("data",'train_label.p')) if option == "train label" else pickle_return(join("data",'train_data.p'))
 
-		epoch_finished = False
 		num_of_iterations = 0
-		while not epoch_finished:
-			input, output, epoch_finished, data = random_batch(params, data=data)
+		for input, output in make_batch(params, data):
+			start_iterate = time()
+
+			input, output = pad_tensor(params, input, output)
 			input = input.cuda()
 			loss += iterate(model, input, output, optimizer, criterion)
 
@@ -292,9 +291,10 @@ def evaluate(name, mode):
 	data = pickle_return(join("data",'test_data.p'))
 
 	epoch_finished = False
-	while not epoch_finished:
+	for input, output in make_batch(params, data):
 		params["batch_size"] = 73 # in case previously large models use too much memory
-		input, output, epoch_finished, data = random_batch(params, data=data)
+
+		input, output = pad_tensor(params, input, output)
 		input = input.cuda()
 		loss = one_batch_evaluation(name, input, output, params, mode)
 		total_loss = [num+loss[i] for i, num in enumerate(total_loss)]
