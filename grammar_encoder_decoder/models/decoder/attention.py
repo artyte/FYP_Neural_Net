@@ -21,13 +21,16 @@ class Attention(Decoder):
 	def forward(self, encoder_output, hidden, decoder_output):
 		batch_size = encoder_output.size(1)
 
-		# create placeholder for net's output
+		# create placeholder for net's output and attention
 		final_output = Variable(torch.zeros(self.seq_len, batch_size, self.output_size)).cuda()
+		attention = Variable(torch.zeros(self.seq_len, batch_size, self.seq_len)).cuda()
 
 		for i in range(self.seq_len):
 			# mimic keras's timedistributeddense for computing efficiency
 			vector = self.attn(torch.cat((hidden.repeat(self.seq_len,1), encoder_output.contiguous().view(-1, encoder_output.size(-1))), 1))
 			attn_energy = F.softmax(self.v(F.tanh(vector)).contiguous().view(-1,batch_size).transpose(0,1))
+
+			attention[i] = attn_energy
 
 			# encoder_output axis: S x B x D -> B x S x D (to match attn_energy's B x 1 x S)
 			context = torch.bmm(attn_energy.unsqueeze(1), encoder_output.transpose(0,1)).cuda()
@@ -45,4 +48,4 @@ class Attention(Decoder):
 
 			final_output[i] = decoder_output
 
-		return F.log_softmax(final_output) * -1
+		return F.log_softmax(final_output) * -1, attention

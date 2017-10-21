@@ -35,12 +35,16 @@ def pad_tensor(params, final_input, final_output):
 
 	return final_input, final_output
 
-def iterate(seq2seq, input, target, optimizer, criterion):
+def iterate(seq2seq, input, target, optimizer, criterion, params):
 	# for each training cycle, zero the gradients out otherwise gradients will accumulate
 	seq2seq.zero_grad()
 
+	output = None
 	# pass data through these 2 layers
-	output = seq2seq(input)
+	if params["seq2seq_type"] == "vanilla":
+		output = seq2seq(input)
+	else:
+		output, _ = seq2seq(input)
 	output = output.transpose(0,1) # transposed axis : B x S x D (batch as first axis so as to iterate easily)
 	target = target.cuda()
 
@@ -57,29 +61,27 @@ def iterate(seq2seq, input, target, optimizer, criterion):
 	return loss.data[0]
 
 def training_loop(model, optimizer, criterion, option, params):
-	evaluate_rate = int(raw_input("Enter evaluate rate: "))
+	evaluate_rate = 10
+	epochs = 50 if option == "train model" else 30
 
 	# use time to print evaluate_rate duration and training duration
 	from time import time
 	total_time = time()
 
 	loss = 0.0 # total loss per evaluate rate iteration
-	epoch = 0
 	loss_list = [] # store history of loss per epoch
-	with open("continue_epoch.txt", "w") as f: f.write("start")
-	while bool(open("continue_epoch.txt").readline()): # whether to continue running
+	for epoch in range(epochs):
 		total_loss = 0.0 # total loss per epoch
 
 		# reset temporary batch data for memory efficiency
 		data = pickle_return(join("data",'train_label.p')) if option == "train label" else pickle_return(join("data",'train_data.p'))
 
 		num_of_iterations = 0
+		start_iterate = time()
 		for input, output in make_batch(params, data):
-			start_iterate = time()
-
 			input, output = pad_tensor(params, input, output)
 			input = input.cuda()
-			loss += iterate(model, input, output, optimizer, criterion)
+			loss += iterate(model, input, output, optimizer, criterion, params)
 
 			num_of_iterations += 1
 
@@ -91,10 +93,9 @@ def training_loop(model, optimizer, criterion, option, params):
 				start_iterate = time()
 
 		loss_list.append(total_loss)
-		epoch += 1
 
 	data = []
-	data.append(range(epoch))
+	data.append(range(epochs))
 	data.append(loss_list)
 
 	# get total time spent on training
@@ -150,10 +151,10 @@ def correct_sentence(name, mode):
 	label = torch.load(join(path, name + ".label"))
 	model = torch.load(join(path, name + ".model"))
 
-	input = raw_input("Enter a sentence: ")
+	first_input = raw_input("Enter a sentence: ")
 
 	from nltk.tokenize import word_tokenize as wt
-	sentence = wt(input)
+	sentence = wt(first_input)
 	sentence_tmp = []
 
 	from convenient_pickle import pickle_return
@@ -184,7 +185,14 @@ def correct_sentence(name, mode):
 	mask = Variable(torch.zeros(hyperparameters["output_size"])).cuda()
 	for i in particles: mask[i] = 1.0
 
-	output = get_output([i[::-1] for i in x], input, label, model, mask, hyperparameters, mode)[0]
+	output = None
+	attention = None
+
+	if hyperparameters["seq2seq_type"] == "attention":
+		output, attention = get_output([i[::-1] for i in x], input, label, model, mask, hyperparameters, mode)
+		output = output[0]
+	else:
+		output = get_output([i[::-1] for i in x], input, label, model, mask, hyperparameters, mode)[0]
 
 	# reverse mapping
 	reverse_index = pickle_return(join("data",'reverse_index.p'))
@@ -196,10 +204,40 @@ def correct_sentence(name, mode):
 	sentence = sentence[0].upper() + sentence[1:]
 	print "Suggested sentence: %s" % (sentence)
 
+	if hyperparameters["seq2seq_type"] == "attention": visualize_attention(wt(sentence), wt(first_input), attention.transpose(0,1).data)
+
+def visualize_attention(input_sentence, output_words, attentions):
+	import matplotlib.pyplot as plt
+	import matplotlib.ticker as ticker
+	import numpy as np
+
+	# Set up figure with colorbar
+	fig = plt.figure()
+	ax = fig.add_subplot(111)
+	cax = ax.matshow(attentions.numpy(), cmap='bone')
+	fig.colorbar(cax)
+
+	# Set up axes
+	ax.set_xticklabels([''] + input_sentence, rotation=90)
+	ax.set_yticklabels([''] + output_words)
+
+	# Show label at every tick
+	ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+	ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+	plt.show()
+	plt.close()
+
 def get_output(list_input, input, label, model, mask, hyperparameters, mode="evaluate"):
 	import numpy as np
 	# get output from model
-	output = model(input)
+	output = None
+	attention = None
+	if hyperparameters["seq2seq_type"] == "attention":
+		output, attention = model(input)
+		attention = attention.squeeze(1).cpu()
+	else:
+		output = model(input)
 	output = output.transpose(0,1) # batch must be on the first axis
 	if mode == "correct":
 		for i in range(hyperparameters["seq_len"]):
@@ -214,8 +252,13 @@ def get_output(list_input, input, label, model, mask, hyperparameters, mode="eva
 	indices = indices.cpu()
 	indices = np.asarray(indices.transpose(1,2).squeeze(0).data.numpy()) if mode == "correct" else np.asarray(indices.squeeze(2).data.numpy())
 
+	labels = None
 	# get label
-	labels = label(input).cpu().squeeze(1)
+	if hyperparameters["seq2seq_type"] == "attention":
+		labels, _ = label(input)
+		labels = labels.cpu().squeeze(1)
+	else:
+		labels = label(input).cpu().squeeze(1)
 	values, indices_masks = labels.max(1) if mode == "correct" else labels.max(2)
 	indices_masks = indices_masks.squeeze(2) if mode == "evaluate" else indices_masks
 	indices_masks = indices_masks.data.numpy()
@@ -229,6 +272,9 @@ def get_output(list_input, input, label, model, mask, hyperparameters, mode="eva
 	for i, indices_mask in enumerate(indices_masks):
 		for k, item in enumerate(indices_mask):
 			if item < 0: indices_masks[i,k] = indices[i,k] # if negative, change to indices
+
+	if hyperparameters["seq2seq_type"] == "attention" and mode == "correct":
+		return indices_masks.tolist(), attention
 
 	return indices_masks.tolist()
 
