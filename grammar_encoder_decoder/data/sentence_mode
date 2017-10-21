@@ -1,0 +1,3 @@
+S'character'
+p0
+.

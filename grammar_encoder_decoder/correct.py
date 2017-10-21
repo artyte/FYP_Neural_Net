@@ -153,8 +153,11 @@ def correct_sentence(name, mode):
 
 	first_input = raw_input("Enter a sentence: ")
 
+	from convenient_pickle import pickle_return
+	sentence_mode = pickle_return(join("data", "sentence_mode.p"))
+
 	from nltk.tokenize import word_tokenize as wt
-	sentence = wt(first_input)
+	sentence = wt(first_input) if sentence_mode == "word" else list(first_input)
 	sentence_tmp = []
 
 	from convenient_pickle import pickle_return
@@ -178,7 +181,7 @@ def correct_sentence(name, mode):
 	input = input.cuda()
 
 	particles = pickle_return(join("data",'particles.p'))
-	particles = [index_map[particle] for particle in particles]
+	particles = [index_map[particle] for particle in particles] if sentence_mode == "word" else [index_map[key] for key in index_map]
 	for i in sentence_tmp:
 		if i not in particles: particles.append(i)
 
@@ -200,11 +203,13 @@ def correct_sentence(name, mode):
 	for num in output:
 		if num == 0 and OoV: predict.append(OoV.pop(0))
 		if num != 0: predict.append(reverse_index[num])
-	sentence = " ".join(predict)
+	sentence = " ".join(predict) if sentence_mode == "word" else "".join(predict)
 	sentence = sentence[0].upper() + sentence[1:]
 	print "Suggested sentence: %s" % (sentence)
 
-	if hyperparameters["seq2seq_type"] == "attention": visualize_attention(wt(sentence), wt(first_input), attention.transpose(0,1).data)
+	if hyperparameters["seq2seq_type"] == "attention" and sentence_mode == "word": visualize_attention(wt(sentence), wt(first_input), attention.transpose(0,1).data)
+
+	if hyperparameters["seq2seq_type"] == "attention" and sentence_mode == "character": visualize_attention(list(sentence), list(first_input), attention.transpose(0,1).data)
 
 def visualize_attention(input_sentence, output_words, attentions):
 	import matplotlib.pyplot as plt
@@ -288,9 +293,10 @@ def one_batch_evaluation(name, input, candidates, params, mode):
 	sentence_tmp = []
 
 	from convenient_pickle import pickle_return
+	sentence_mode = pickle_return(join("data", "sentence_mode.p"))
 	index_map = pickle_return(join("data",'index_map.p'))
 	particle_list = pickle_return(join("data",'particles.p'))
-	particle_list = [index_map[particle] for particle in particle_list]
+	particle_list = [index_map[particle] for particle in particle_list] if sentence_mode == "word" else [index_map[key] for key in index_map]
 	particles = [] # a list of list, each list contains a particle_list + that sentence's words
 	list_input = input.cpu().data.numpy().tolist()
 

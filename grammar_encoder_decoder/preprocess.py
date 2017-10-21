@@ -109,7 +109,7 @@ def prepare_first_data(sample_by, sample_val, sentence_mode):
 '''
 Since right have at least all the words in wrong, only right is assumed to be used
 '''
-def create_index_maps(data, particles, threshold=5):
+def create_index_maps(data, particles, sentence_mode, threshold=5):
 	index_map = {}
 	for _, right, _ in data:
 		for word in right:
@@ -118,9 +118,10 @@ def create_index_maps(data, particles, threshold=5):
 			else: index_map[word] += 1
 
 	# particles HAVE to be indexable
-	for particle in particles:
-		if particle.lower() not in index_map: index_map[particle.lower()] = threshold + 1
-		elif index_map[particle.lower()] <= threshold: index_map[particle.lower()] = threshold + 1
+	if sentence_mode == "word":
+		for particle in particles:
+			if particle.lower() not in index_map: index_map[particle.lower()] = threshold + 1
+			elif index_map[particle.lower()] <= threshold: index_map[particle.lower()] = threshold + 1
 
 	if log_long:
 		# number of words with that frequency vs frequency of words
@@ -168,13 +169,17 @@ def produce_data_files(*args):
 
 	for index, filename in enumerate(filenames): pickle_dump(join(path, filename), args[index])
 
-def prepare_input(data, particles):
+def prepare_input(data, particles, sentence_mode):
+
+	from convenient_pickle import pickle_dump
+	pickle_dump(join(path, "sentence_mode.p"), sentence_mode)
+
 	train_data = []
 	train_label = []
 	test_data = []
 	test_label = []
 
-	index_map, reverse_index = create_index_maps(data, particles)
+	index_map, reverse_index = create_index_maps(data, particles, sentence_mode)
 
 	import random
 	from numpy.random import uniform as rand
@@ -195,4 +200,4 @@ def prepare_input(data, particles):
 def main(preprocessor):
 	data, particles = prepare_first_data(preprocessor["sample_by"], int(preprocessor[preprocessor["sample_by"]]), preprocessor["sentence_mode"])
 
-	prepare_input(data, particles)
+	prepare_input(data, particles, preprocessor["sentence_mode"])
