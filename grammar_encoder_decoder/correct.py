@@ -62,7 +62,7 @@ def iterate(seq2seq, input, target, optimizer, criterion, params):
 
 def training_loop(model, optimizer, criterion, option, params):
 	evaluate_rate = 10
-	epochs = 50 if option == "train model" else 30
+	epochs = 1500 if option == "train model" else 1500
 
 	# use time to print evaluate_rate duration and training duration
 	from time import time
@@ -70,6 +70,7 @@ def training_loop(model, optimizer, criterion, option, params):
 
 	loss = 0.0 # total loss per evaluate rate iteration
 	loss_list = [] # store history of loss per epoch
+
 	for epoch in range(epochs):
 		total_loss = 0.0 # total loss per epoch
 
@@ -252,6 +253,7 @@ def get_output(list_input, input, label, model, mask, hyperparameters, mode="eva
 			for k in range(output.size(0)):
 				output[k,i] = output[k,i] * mask[k]
 	values, indices = output.max(2)
+	indices = indices.unsqueeze(2)
 
 	# convert into list for reverse mapping
 	indices = indices.cpu()
@@ -265,7 +267,7 @@ def get_output(list_input, input, label, model, mask, hyperparameters, mode="eva
 	else:
 		labels = label(input).cpu().squeeze(1)
 	values, indices_masks = labels.max(1) if mode == "correct" else labels.max(2)
-	indices_masks = indices_masks.squeeze(2) if mode == "evaluate" else indices_masks
+	indices_masks = indices_masks if mode == "evaluate" else indices_masks.unsqueeze(1)
 	indices_masks = indices_masks.data.numpy()
 	for i, indices_mask in enumerate(indices_masks):
 		for k, item in enumerate(indices_mask):
